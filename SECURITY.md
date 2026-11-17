@@ -27,9 +27,10 @@ service for others.
   however old it is (`data_age_seconds` shows the age). Several lists are cloud
   ranges, so an address the cloud has since handed to another customer could stay
   `confirmed`. A maximum age is planned.
-- **Broad reverse-DNS suffixes:** `yandex.*` and `baidu.*` are taken from the
-  operators' docs. It is not yet verified that their cloud offerings cannot hand
-  out forward-confirmable names under those zones. See [docs/bots.md](docs/bots.md).
+- **Broad reverse-DNS suffixes:** `yandex.*`, `baidu.*`, `google.com` and
+  `seznam.cz` are only safe while their operators' name servers return no
+  customer IPs for names under them. A sample on 2026-11-18 found none (see
+  [docs/bots.md](docs/bots.md)), but nothing checks this automatically yet.
 - **Cacheable transient answers:** `not_checkable` answers (DNS failure, list not
   loaded) are sent with `Cache-Control: public, max-age=300`, like definite
   ones, so a shared cache holds them for up to 5 minutes.

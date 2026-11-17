@@ -45,10 +45,25 @@ shape (`google-prefixes`). SERanking's `?txt=1` endpoint has one IP per line
   `83.99.206.0/24`). Those are not in the file, since there is no field for
   hand-copied ranges. The reverse-DNS rule covers them instead.
 - **Broad suffixes** (`google.com`, `seznam.cz`, `yandex.ru`/`.net`/`.com`,
-  `baidu.com`/`.jp`) are the operators' own words. **Open question before
-  going public:** do Yandex Cloud or Baidu Cloud hand out forward-confirmable PTR
-  names under those zones? If so, the suffix must be narrowed (e.g.
-  `spider.yandex.com`, `crawl.baidu.com`).
+  `baidu.com`/`.jp`) are the operators' own words. Anyone can point the PTR of
+  their own IP at any name, so a suffix is only unsafe if the operator's own
+  name servers return a customer's IP for a name under it, as Google does for
+  `*.bc.googleusercontent.com`. Checked on 2026-11-18 by sampling, with no such
+  case found:
+  - Yandex Cloud and Baidu Cloud IPs have no default PTR. The PTRs customers set
+    themselves point to their own domains.
+  - Both clouds put customer names under separate domains (`yandexcloud.net`,
+    `yandex.cloud`; `baidubce.com`, `bcebos.com`).
+  - No name that encodes an IP resolves to that IP (nip.io style) under any of
+    the suffixes. `yandex.ru` and `yandex.com` have a wildcard, but it points
+    only to Yandex's own `213.180.204.242`.
+  - The real crawlers use `*.spider.yandex.com` and
+    `baiduspider-*.crawl.baidu.com`.
+
+  The suffixes stay as broad as the operators give them: narrowing them adds no
+  protection and could refute real crawlers on other names. This is a sample,
+  not a guarantee. It is worth repeating if an operator starts publishing names
+  for customer IPs.
 
 ## Not checkable: 24 bots
 
