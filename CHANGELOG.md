@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Docs: verdict logic (`docs/verdicts.md`), per-bot rationale (`docs/bots.md`),
+  CONTRIBUTING.md, SECURITY.md.
+- Module path `github.com/dkd-dobberkau/bot-verify`; GitHub Actions CI with
+  tests and Trivy scan.
+
 ## 0.1.0 – 2026-11-18
 
 - First version: single Go binary with HTTP API (`/v1/verify`, `/v1/bots`,

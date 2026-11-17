@@ -12,8 +12,15 @@ question for a given IP and bot name.
 It uses only what operators publish about their own bots. It stores no visitor
 data and logs no queried IPs.
 
-Status: v0.1.0. See [docs/idea.md](docs/idea.md) for the background and
-decisions.
+Status: v0.1.0.
+
+| Document | |
+|---|---|
+| [docs/idea.md](docs/idea.md) | Background and design decisions |
+| [docs/verdicts.md](docs/verdicts.md) | How an answer is reached, limits and timeouts |
+| [docs/bots.md](docs/bots.md) | Why each bot is classified the way it is |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Setup, adding bots, code rules |
+| [SECURITY.md](SECURITY.md) | Reporting issues, known limitations |
 
 Spun off from [goodbot-badbot.com](https://goodbot-badbot.com), which measures
 robots.txt compliance and keeps a catalog of what operators say about their bots
@@ -129,7 +136,8 @@ instead. Only list a reverse-DNS suffix if nobody but the operator can get
 names under it: `googleusercontent.com`, for example, is any Google Cloud
 customer's, so it is not a Googlebot suffix.
 
-`go test ./...` checks the file.
+`go test ./...` checks the file. Read [docs/bots.md](docs/bots.md) before
+changing an entry.
 
 ## License
 
