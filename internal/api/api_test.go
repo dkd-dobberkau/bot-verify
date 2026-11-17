@@ -179,3 +179,19 @@ func TestHealthz(t *testing.T) {
 		t.Errorf("status %d body %v", resp.StatusCode, body)
 	}
 }
+
+func TestURLsNotHTMLEscaped(t *testing.T) {
+	cat := catalog.New([]catalog.Bot{{ID: "ampbot", Name: "AmpBot", NotCheckable: "x", Docs: "https://ops.example/?a=1&b=2"}})
+	srv := httptest.NewServer(NewHandler(verify.New(cat, store.New(), noRDNS{}, time.Now), cat, store.New(), slog.New(slog.DiscardHandler)))
+	defer srv.Close()
+	resp, err := http.Get(srv.URL + "/v1/verify?ip=192.0.2.1&bot=ampbot")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	var buf bytes.Buffer
+	buf.ReadFrom(resp.Body)
+	if !strings.Contains(buf.String(), "a=1&b=2") {
+		t.Errorf("body = %s", buf.String())
+	}
+}

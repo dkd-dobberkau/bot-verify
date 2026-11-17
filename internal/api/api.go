@@ -143,7 +143,11 @@ func writeError(w http.ResponseWriter, status int, code, message string) {
 func writeJSON(w http.ResponseWriter, status int, body any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(body)
+	// Responses are JSON under a default-src 'none' CSP, never HTML, so
+	// URLs keep a readable "&" instead of "&".
+	encoder := json.NewEncoder(w)
+	encoder.SetEscapeHTML(false)
+	encoder.Encode(body)
 }
 
 func securityHeaders(next http.Handler) http.Handler {
