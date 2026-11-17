@@ -46,6 +46,16 @@ type Catalog struct {
 	byID map[string]int
 }
 
+// New builds a catalog from bots without validation, for callers that
+// construct entries in code. Later duplicates win.
+func New(bots []Bot) *Catalog {
+	cat := &Catalog{Bots: bots, byID: make(map[string]int, len(bots))}
+	for i, bot := range bots {
+		cat.byID[bot.ID] = i
+	}
+	return cat
+}
+
 // Get returns the bot with the given id.
 func (c *Catalog) Get(id string) (Bot, bool) {
 	i, ok := c.byID[id]

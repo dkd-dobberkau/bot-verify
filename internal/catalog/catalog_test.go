@@ -58,3 +58,10 @@ func TestLoadRejects(t *testing.T) {
 		})
 	}
 }
+
+func TestNewIndexesBots(t *testing.T) {
+	cat := New([]Bot{{ID: "a", Name: "A"}, {ID: "b", Name: "B"}})
+	if bot, ok := cat.Get("b"); !ok || bot.Name != "B" {
+		t.Errorf("Get(b) = %+v, %v", bot, ok)
+	}
+}
