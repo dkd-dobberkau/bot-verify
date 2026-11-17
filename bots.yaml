@@ -1,0 +1,309 @@
+# Every bot bot-verify knows and how its operator says to verify it.
+# Derived on 2026-11-17 from goodbot-badbot's app/bot_claims.json (question
+# "recognition"); maintained here since. Formats: google-prefixes, cidr-lines.
+bots:
+  - id: petalbot
+    name: "PetalBot"
+    ua_tokens: ["PetalBot"]
+    rdns_suffixes: [petalsearch.com]
+    docs: "https://webmaster.petalsearch.com/site/petalbot"
+  - id: gptbot
+    name: "GPTBot"
+    ua_tokens: ["GPTBot"]
+    ip_sources:
+      - url: "https://openai.com/gptbot.json"
+        format: google-prefixes
+    docs: "https://developers.openai.com/api/docs/bots"
+  - id: meta-externalagent
+    name: "Meta-ExternalAgent"
+    ua_tokens: ["Meta-ExternalAgent"]
+    not_checkable: "Operator states a user agent only, no IP list or reverse-DNS rule"
+    docs: "https://developers.facebook.com/docs/sharing/webmasters/web-crawlers"
+  - id: chatgpt-user
+    name: "ChatGPT-User"
+    ua_tokens: ["ChatGPT-User"]
+    ip_sources:
+      - url: "https://openai.com/chatgpt-user.json"
+        format: google-prefixes
+    docs: "https://developers.openai.com/api/docs/bots"
+  - id: claudebot
+    name: "ClaudeBot"
+    ua_tokens: ["ClaudeBot"]
+    ip_sources:
+      - url: "https://claude.com/crawling/bots.json"
+        format: google-prefixes
+    docs: "https://support.claude.com/en/articles/8896518-does-anthropic-crawl-data-from-the-web-and-how-can-site-owners-block-the-crawler"
+  - id: oai-searchbot
+    name: "OAI-SearchBot"
+    ua_tokens: ["OAI-SearchBot"]
+    ip_sources:
+      - url: "https://openai.com/searchbot.json"
+        format: google-prefixes
+    docs: "https://developers.openai.com/api/docs/bots"
+  - id: amazonbot
+    name: "Amazonbot"
+    ua_tokens: ["Amazonbot"]
+    not_checkable: "Operator publishes its IP list only as an HTML page, not as a machine-readable list"
+    docs: "https://developer.amazon.com/support/amazonbot"
+  - id: bytespider
+    name: "Bytespider"
+    ua_tokens: ["Bytespider"]
+    not_checkable: "Operator publishes no IP list or reverse-DNS rule"
+  - id: applebot
+    name: "Applebot"
+    ua_tokens: ["Applebot"]
+    ip_sources:
+      - url: "https://search.developer.apple.com/applebot.json"
+        format: google-prefixes
+    rdns_suffixes: [applebot.apple.com]
+    docs: "https://support.apple.com/en-us/119829"
+  - id: shapbot
+    name: "ShapBot"
+    ua_tokens: ["ShapBot"]
+    ip_sources:
+      - url: "https://docs.parallel.ai/resources/shapbot.json"
+        format: google-prefixes
+    docs: "https://docs.parallel.ai/resources/crawler"
+  - id: claude-user
+    name: "Claude-User"
+    ua_tokens: ["Claude-User"]
+    ip_sources:
+      - url: "https://claude.com/crawling/bots.json"
+        format: google-prefixes
+    docs: "https://support.claude.com/en/articles/8896518-does-anthropic-crawl-data-from-the-web-and-how-can-site-owners-block-the-crawler"
+  - id: perplexitybot
+    name: "PerplexityBot"
+    ua_tokens: ["PerplexityBot"]
+    ip_sources:
+      - url: "https://www.perplexity.ai/perplexitybot.json"
+        format: google-prefixes
+    docs: "https://docs.perplexity.ai/guides/bots"
+  - id: bravebot
+    name: "BraveBot"
+    ua_tokens: ["BraveBot"]
+    not_checkable: "Operator says it does not advertise a differentiated user agent"
+    docs: "https://search.brave.com/help/brave-search-crawler"
+  - id: awariosmartbot
+    name: "AwarioSmartBot"
+    ua_tokens: ["AwarioSmartBot"]
+    not_checkable: "Operator says: do not try to identify the bots via IP"
+    docs: "https://awario.com/bots.html"
+  - id: google-cloudvertexbot
+    name: "Google-CloudVertexBot"
+    ua_tokens: ["Google-CloudVertexBot"]
+    ip_sources:
+      - url: "https://developers.google.com/static/crawling/ipranges/common-crawlers.json"
+        format: google-prefixes
+    rdns_suffixes: [googlebot.com]
+    docs: "https://developers.google.com/search/docs/crawling-indexing/google-common-crawlers"
+  - id: googleother
+    name: "GoogleOther"
+    ua_tokens: ["GoogleOther"]
+    ip_sources:
+      - url: "https://developers.google.com/static/crawling/ipranges/common-crawlers.json"
+        format: google-prefixes
+    rdns_suffixes: [googlebot.com]
+    docs: "https://developers.google.com/search/docs/crawling-indexing/google-common-crawlers"
+  - id: youbot
+    name: "YouBot"
+    ua_tokens: ["YouBot"]
+    rdns_suffixes: [search.you.com]
+    docs: "https://you.com/docs/youbot"
+  - id: ccbot
+    name: "CCBot"
+    ua_tokens: ["CCBot"]
+    ip_sources:
+      - url: "https://index.commoncrawl.org/ccbot.json"
+        format: google-prefixes
+    rdns_suffixes: [crawl.commoncrawl.org]
+    docs: "https://commoncrawl.org/ccbot"
+  - id: cohere-ai
+    name: "cohere-ai"
+    ua_tokens: ["cohere-ai"]
+    not_checkable: "Operator publishes no IP list or reverse-DNS rule"
+    docs: "https://docs.cohere.com/docs/cohere-web-crawlers"
+  - id: google-extended
+    name: "Google-Extended"
+    ua_tokens: ["Google-Extended"]
+    not_checkable: "No own user agent; Google-Extended is a robots.txt token used by existing Google crawlers"
+    docs: "https://developers.google.com/search/docs/crawling-indexing/google-common-crawlers"
+  - id: chatglm-spider
+    name: "ChatGLM-Spider"
+    ua_tokens: ["ChatGLM-Spider"]
+    not_checkable: "Operator publishes no IP list or reverse-DNS rule"
+  - id: meta-externalfetcher
+    name: "Meta-ExternalFetcher"
+    ua_tokens: ["Meta-ExternalFetcher"]
+    not_checkable: "Operator states a user agent only, no IP list or reverse-DNS rule"
+    docs: "https://developers.facebook.com/docs/sharing/webmasters/web-crawlers"
+  - id: deepseekbot
+    name: "DeepSeekBot"
+    ua_tokens: ["DeepSeekBot"]
+    not_checkable: "Operator publishes no IP list or reverse-DNS rule"
+  - id: semrushbot
+    name: "SemrushBot"
+    ua_tokens: ["SemrushBot"]
+    not_checkable: "Operator says: do not try to block SemrushBot via IP as we do not use any consecutive IP blocks"
+    docs: "https://www.semrush.com/bot/"
+  - id: ahrefsbot
+    name: "AhrefsBot"
+    ua_tokens: ["AhrefsBot"]
+    ip_sources:
+      - url: "https://api.ahrefs.com/v3/public/crawler-ip-ranges"
+        format: google-prefixes
+    rdns_suffixes: [ahrefs.com, ahrefs.net]
+    docs: "https://ahrefs.com/robot"
+  - id: mj12bot
+    name: "MJ12bot"
+    ua_tokens: ["MJ12bot"]
+    not_checkable: "Distributed community crawler without fixed IPs; operator offers a pre-arranged CRAWLER-IDENT string on request"
+    docs: "https://mj12bot.com/"
+  - id: dotbot
+    name: "DotBot"
+    ua_tokens: ["DotBot"]
+    not_checkable: "Operator states a user agent only, no IP list or reverse-DNS rule"
+    docs: "https://moz.com/help/moz-procedures/crawlers/dotbot"
+  - id: serankingbacklinksbot
+    name: "SERankingBacklinksBot"
+    ua_tokens: ["SERankingBacklinksBot"]
+    ip_sources:
+      - url: "https://api.seranking.com/backlinks-bot-ips?txt=1"
+        format: cidr-lines
+    rdns_suffixes: [seranking.com]
+    docs: "https://help.seranking.com/hc/en-us/articles/23020353159964-SERankingBacklinksBot-Crawler"
+  - id: seranking
+    name: "SERanking"
+    ua_tokens: ["SERanking"]
+    not_checkable: "Operator publishes no IP list or reverse-DNS rule"
+  - id: moptimizer
+    name: "mOptimizer"
+    ua_tokens: ["mOptimizer"]
+    not_checkable: "Operator publishes no IP list or reverse-DNS rule"
+  - id: screaming-frog
+    name: "Screaming Frog"
+    ua_tokens: ["Screaming Frog"]
+    not_checkable: "Desktop tool running on users' own machines; the user agent can be changed"
+    docs: "https://www.screamingfrog.co.uk/seo-spider/user-guide/configuration/"
+  - id: googlebot
+    name: "Googlebot"
+    ua_tokens: ["Googlebot"]
+    ip_sources:
+      - url: "https://developers.google.com/static/crawling/ipranges/common-crawlers.json"
+        format: google-prefixes
+    rdns_suffixes: [googlebot.com, google.com]
+    docs: "https://developers.google.com/crawling/docs/crawlers-fetchers/verify-google-requests"
+  - id: bingbot
+    name: "bingbot"
+    ua_tokens: ["bingbot"]
+    ip_sources:
+      - url: "https://www.bing.com/toolbox/bingbot.json"
+        format: google-prefixes
+    rdns_suffixes: [search.msn.com]
+    docs: "https://www.bing.com/webmasters/help/how-to-verify-bingbot-3905dc26"
+  - id: baiduspider
+    name: "Baiduspider"
+    ua_tokens: ["Baiduspider"]
+    rdns_suffixes: [baidu.com, baidu.jp]
+    docs: "https://help.baidu.com/question?prod_id=99&class=476&id=2996"
+  - id: yandexbot
+    name: "YandexBot"
+    ua_tokens: ["YandexBot"]
+    rdns_suffixes: [yandex.ru, yandex.net, yandex.com]
+    docs: "https://yandex.com/support/webmaster/en/robot-workings/check-yandex-robots.html"
+  - id: seznambot
+    name: "SeznamBot"
+    ua_tokens: ["SeznamBot"]
+    ip_sources:
+      - url: "https://search.seznam.cz/ipranges/seznambot.json"
+        format: google-prefixes
+    rdns_suffixes: [seznam.cz]
+    docs: "https://o-seznam.cz/napoveda/vyhledavani/en/seznambot-crawler/"
+  - id: duckduckbot
+    name: "DuckDuckBot"
+    ua_tokens: ["DuckDuckBot"]
+    ip_sources:
+      - url: "https://duckduckgo.com/duckduckbot.json"
+        format: google-prefixes
+    docs: "https://duckduckgo.com/duckduckgo-help-pages/results/duckduckbot"
+  - id: sogou-spider
+    name: "Sogou Spider"
+    ua_tokens: ["Sogou Spider"]
+    not_checkable: "Operator publishes no IP list or reverse-DNS rule"
+    docs: "https://www.sogou.com/docs/help/webmasters.htm"
+  - id: builtwith
+    name: "BuiltWith"
+    ua_tokens: ["BuiltWith"]
+    not_checkable: "Operator states a user agent only, no IP list or reverse-DNS rule"
+    docs: "https://builtwith.com/biup"
+  - id: dataprovider
+    name: "Dataprovider"
+    ua_tokens: ["Dataprovider"]
+    rdns_suffixes: [dataproviderbot.com]
+    docs: "https://www.dataprovider.com/crawler/"
+  - id: heritrix
+    name: "Heritrix"
+    ua_tokens: ["Heritrix"]
+    not_checkable: "Open-source crawler run by many operators; no common IP list or reverse-DNS rule"
+    docs: "https://github.com/internetarchive/heritrix3"
+  - id: censysinspect
+    name: "CensysInspect"
+    ua_tokens: ["CensysInspect"]
+    not_checkable: "Operator lists its IP ranges only on a web page, not as a machine-readable list"
+    docs: "https://docs.censys.com/docs/opt-out-of-data-collection"
+  - id: internetmeasurement
+    name: "InternetMeasurement"
+    ua_tokens: ["InternetMeasurement"]
+    not_checkable: "Operator lists its IP ranges only on a web page, not as a machine-readable list"
+    docs: "https://internet-measurement.com/"
+  - id: ibou-search
+    name: "ibou-search"
+    ua_tokens: ["ibou-search"]
+    ip_sources:
+      - url: "https://www.ibou.com/ibousearch-ip-ranges.json"
+        format: google-prefixes
+    rdns_suffixes: [ibou.io]
+    docs: "https://www.ibou.com/crawlers.html"
+  - id: iboubot
+    name: "IbouBot"
+    ua_tokens: ["IbouBot"]
+    ip_sources:
+      - url: "https://www.ibou.com/iboubot-ip-ranges.json"
+        format: google-prefixes
+    rdns_suffixes: [ibou.io]
+    docs: "https://www.ibou.com/iboubot.html"
+  - id: barkrowler
+    name: "Barkrowler"
+    ua_tokens: ["Barkrowler"]
+    ip_sources:
+      - url: "https://www.babbar.tech/barkrowler-ip-ranges.json"
+        format: google-prefixes
+    rdns_suffixes: [babbar.eu]
+    docs: "https://babbar.tech/crawler"
+  - id: geedoshopproductfinder
+    name: "GeedoShopProductFinder"
+    ua_tokens: ["GeedoShopProductFinder"]
+    rdns_suffixes: [geedo.com]
+    docs: "https://geedo.com/product-finder/"
+  - id: exasearchbot
+    name: "ExaSearchBot"
+    ua_tokens: ["ExaSearchBot"]
+    not_checkable: "Signs requests with Web Bot Auth; verify the signature, not the IP"
+    docs: "https://crawler.exa.ai/"
+  - id: riverbot
+    name: "RiverBot"
+    ua_tokens: ["RiverBot"]
+    ip_sources:
+      - url: "https://river.ai/riverbot.json"
+        format: google-prefixes
+    rdns_suffixes: [bot.river.ai]
+    docs: "https://river.ai/bot"
+  - id: pandalytics
+    name: "Pandalytics"
+    ua_tokens: ["Pandalytics"]
+    not_checkable: "Signs requests with Web Bot Auth; verify the signature, not the IP"
+    docs: "https://domainsbot.com/network-crawler-pandalytics-kdc68dhsbd/"
+  - id: anticlonebot
+    name: "AntiCloneBot"
+    ua_tokens: ["AntiCloneBot"]
+    not_checkable: "Signs requests with Web Bot Auth; verify the signature, not the IP"
+    docs: "https://anticlone.de/bot"
