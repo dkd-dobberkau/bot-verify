@@ -130,3 +130,7 @@ names under it: `googleusercontent.com`, for example, is any Google Cloud
 customer's, so it is not a Googlebot suffix.
 
 `go test ./...` checks the file.
+
+## License
+
+MIT, see [LICENSE](LICENSE).
