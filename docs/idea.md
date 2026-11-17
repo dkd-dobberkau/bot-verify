@@ -45,10 +45,25 @@ meaning "confirmed". Also possible: an HTTP API, or a downloadable dataset.
   client chose its own IP via X-Forwarded-For; a verify answer for a forged IP is
   worse than no answer. Whatever bot-verify ships, its docs must say this.
 
-## Open decisions
+## Decisions (2026-11-17)
 
-1. Interface first: DNS zone, HTTP API, or dataset?
-2. Who runs it: a public service, or software operators run themselves?
-3. Scope of bots: only those with published infrastructure, or also a
-   "not checkable" answer for the rest?
-4. Stack and hosting (goodbot-badbot runs FastAPI on Mittwald).
+1. Interface: a normalised dataset first (per bot: IP ranges, reverse-DNS
+   suffixes, source URL), with a small HTTP API on top. A DNS zone can be
+   generated from the same dataset later.
+2. Operation: both. Open-source software anyone can run themselves, plus one
+   public instance.
+3. Scope: all bots in the catalog, with three answers: `confirmed`, `refuted`,
+   `not_checkable` (with the reason taken from the operator's own statement).
+4. Stack: a single Go binary that collects the data and serves the API, so it
+   is easy to self-host.
+5. Reverse DNS is checked live and forward-confirmed (PTR, then suffix match,
+   then the forward lookup must return the same IP), with a short cache.
+   Without the forward check, reverse DNS can be spoofed.
+6. Operator sources are refreshed every 6 hours by a scheduler built into the
+   binary, using ETag/If-Modified-Since. If a fetch fails, the last good copy
+   stays active, and each answer reports how old its data is.
+7. The bot list is a file in this repo (`bots.yaml`: name, UA token, sources
+   with a format parser, or the reason a bot is `not_checkable`). It is derived
+   once from goodbot-badbot's `bot_claims.json` and maintained here after that.
+8. goodbot-badbot is the first consumer: after v1 it calls the API to catch
+   spoofers that stick to one borrowed bot name.
