@@ -104,7 +104,11 @@ func (v *Verifier) Verify(ctx context.Context, ip netip.Addr, botID string) (Res
 			res.Hostname = hostname
 			return verdict(Confirmed, MethodRDNS, ""), nil
 		}
-		return verdict(Refuted, MethodRDNS, ""), nil
+		// An operator's rDNS rule may not cover all its addresses (CCBot:
+		// IPv4 only), so a NoMatch refutes only once every list is loaded.
+		if allLoaded {
+			return verdict(Refuted, MethodRDNS, ""), nil
+		}
 	}
 	if !allLoaded {
 		return verdict(NotCheckable, MethodIPList, ReasonNotLoaded), nil

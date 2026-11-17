@@ -103,3 +103,22 @@ func TestKnownFormat(t *testing.T) {
 		t.Error("KnownFormat mismatch")
 	}
 }
+
+func TestRejectsOverlyBroadPrefixes(t *testing.T) {
+	cases := []struct{ format, body string }{
+		{"google-prefixes", `{"prefixes":[{"ipv4Prefix":"0.0.0.0/0"}]}`},
+		{"google-prefixes", `{"prefixes":[{"ipv4Prefix":"10.0.0.0/7"}]}`},
+		{"google-prefixes", `{"prefixes":[{"ipv6Prefix":"2000::/15"}]}`},
+		{"cidr-lines", "192.0.2.0/24\n0.0.0.0/0\n"},
+	}
+	for _, c := range cases {
+		parse, _ := ParserFor(c.format)
+		if _, err := parse([]byte(c.body)); err == nil {
+			t.Errorf("%s %q: no error", c.format, c.body)
+		}
+	}
+	got := mustParse(t, "google-prefixes", []byte(`{"prefixes":[{"ipv4Prefix":"10.0.0.0/8"},{"ipv6Prefix":"2001::/16"}]}`))
+	if len(got) != 2 {
+		t.Errorf("/8 and /16 must be accepted, got %v", got)
+	}
+}

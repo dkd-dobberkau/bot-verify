@@ -2,6 +2,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -13,6 +14,10 @@ import (
 	"bot-verify/internal/store"
 	"bot-verify/internal/verify"
 )
+
+// verifyTimeout bounds one verification, including the wait for a free
+// reverse-DNS slot; without it a flood of slow reverse zones starves everyone.
+var verifyTimeout = 3 * time.Second
 
 type handler struct {
 	verifier *verify.Verifier
@@ -44,7 +49,9 @@ func (h *handler) verify(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_bot", "bot must be a bot id as listed by /v1/bots")
 		return
 	}
-	res, err := h.verifier.Verify(r.Context(), ip, botID)
+	ctx, cancel := context.WithTimeout(r.Context(), verifyTimeout)
+	defer cancel()
+	res, err := h.verifier.Verify(ctx, ip, botID)
 	if errors.Is(err, verify.ErrUnknownBot) {
 		writeError(w, http.StatusNotFound, "unknown_bot", "no bot with this id; see /v1/bots")
 		return

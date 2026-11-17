@@ -13,6 +13,13 @@ import (
 // not empty its list on purpose, so this is treated as a failed fetch.
 var ErrNoPrefixes = errors.New("source contains no prefixes")
 
+// Shortest accepted prefixes. Anything broader is an operator mistake that
+// would confirm huge parts of the internet as one bot.
+const (
+	minIPv4Bits = 8
+	minIPv6Bits = 16
+)
+
 // Parser turns a source body into masked prefixes.
 type Parser func(body []byte) ([]netip.Prefix, error)
 
@@ -56,6 +63,9 @@ func parseGooglePrefixes(body []byte) ([]netip.Prefix, error) {
 		if err != nil {
 			return nil, fmt.Errorf("google-prefixes: entry %d: %w", i, err)
 		}
+		if err := checkBreadth(prefix); err != nil {
+			return nil, fmt.Errorf("google-prefixes: entry %d: %w", i, err)
+		}
 		out = append(out, prefix.Masked())
 	}
 	return nonEmpty(out)
@@ -70,6 +80,9 @@ func parseCIDRLines(body []byte) ([]netip.Prefix, error) {
 		}
 		prefix, err := parseIPOrPrefix(line)
 		if err != nil {
+			return nil, fmt.Errorf("cidr-lines: line %d: %w", n+1, err)
+		}
+		if err := checkBreadth(prefix); err != nil {
 			return nil, fmt.Errorf("cidr-lines: line %d: %w", n+1, err)
 		}
 		out = append(out, prefix)
@@ -87,6 +100,17 @@ func parseIPOrPrefix(text string) (netip.Prefix, error) {
 		return netip.Prefix{}, err
 	}
 	return addr.Unmap().Prefix(addr.Unmap().BitLen())
+}
+
+func checkBreadth(prefix netip.Prefix) error {
+	minBits := minIPv6Bits
+	if prefix.Addr().Is4() {
+		minBits = minIPv4Bits
+	}
+	if prefix.Bits() < minBits {
+		return fmt.Errorf("prefix %s is broader than /%d", prefix, minBits)
+	}
+	return nil
 }
 
 func nonEmpty(prefixes []netip.Prefix) ([]netip.Prefix, error) {

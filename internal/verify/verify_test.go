@@ -140,3 +140,8 @@ func TestVerifyIPListBeforeRDNS(t *testing.T) {
 		t.Errorf("rdns calls = %d, want 0", r.calls)
 	}
 }
+
+func TestVerify_RDNSNoMatchWhileListNotLoaded(t *testing.T) {
+	res := verify(t, store.New(), &fakeRDNS{outcome: rdns.NoMatch}, "2001:db8::1", "bothbot")
+	expect(t, res, "not_checkable", "ip_list", "source data not loaded")
+}

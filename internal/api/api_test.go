@@ -195,3 +195,30 @@ func TestURLsNotHTMLEscaped(t *testing.T) {
 		t.Errorf("body = %s", buf.String())
 	}
 }
+
+type blockingRDNS struct{}
+
+func (blockingRDNS) Check(ctx context.Context, _ netip.Addr, _ []string) (rdns.Outcome, string, error) {
+	<-ctx.Done()
+	return rdns.NoMatch, "", rdns.ErrLookup
+}
+
+func TestVerifyHasDeadline(t *testing.T) {
+	old := verifyTimeout
+	verifyTimeout = 100 * time.Millisecond
+	defer func() { verifyTimeout = old }()
+	cat := catalog.New([]catalog.Bot{{ID: "dnsbot", Name: "DNSBot", RDNSSuffixes: []string{"ops.example"}}})
+	srv := httptest.NewServer(NewHandler(verify.New(cat, store.New(), blockingRDNS{}, time.Now), cat, store.New(), slog.New(slog.DiscardHandler)))
+	defer srv.Close()
+	client := &http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Get(srv.URL + "/v1/verify?ip=192.0.2.1&bot=dnsbot")
+	if err != nil {
+		t.Fatalf("request did not finish: %v", err)
+	}
+	defer resp.Body.Close()
+	var body map[string]any
+	json.NewDecoder(resp.Body).Decode(&body)
+	if body["result"] != "not_checkable" || body["reason"] != "dns lookup failed" {
+		t.Errorf("body = %v", body)
+	}
+}
