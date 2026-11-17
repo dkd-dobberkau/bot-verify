@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"bot-verify/internal/catalog"
+	"github.com/dkd-dobberkau/bot-verify/internal/catalog"
 )
 
 // sourceServer answers with the current body; an empty body means 304.

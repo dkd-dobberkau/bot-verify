@@ -16,12 +16,12 @@ import (
 	"syscall"
 	"time"
 
-	"bot-verify/internal/api"
-	"bot-verify/internal/catalog"
-	"bot-verify/internal/rdns"
-	"bot-verify/internal/sources"
-	"bot-verify/internal/store"
-	"bot-verify/internal/verify"
+	"github.com/dkd-dobberkau/bot-verify/internal/api"
+	"github.com/dkd-dobberkau/bot-verify/internal/catalog"
+	"github.com/dkd-dobberkau/bot-verify/internal/rdns"
+	"github.com/dkd-dobberkau/bot-verify/internal/sources"
+	"github.com/dkd-dobberkau/bot-verify/internal/store"
+	"github.com/dkd-dobberkau/bot-verify/internal/verify"
 )
 
 // version is set at build time with -ldflags "-X main.version=…".
@@ -63,7 +63,7 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 	}
 
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
-	sources.UserAgent = "bot-verify/" + version + " (+https://goodbot-badbot.com)"
+	sources.UserAgent = "bot-verify/" + version + " (+https://github.com/dkd-dobberkau/bot-verify)"
 
 	cat, err := catalog.Load(*botsPath, sources.KnownFormat)
 	if err != nil {

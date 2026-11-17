@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"bot-verify/internal/sources"
+	"github.com/dkd-dobberkau/bot-verify/internal/sources"
 )
 
 // Snapshot is the last successfully parsed content of one source URL.

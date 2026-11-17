@@ -8,9 +8,9 @@ import (
 	"net/netip"
 	"time"
 
-	"bot-verify/internal/catalog"
-	"bot-verify/internal/rdns"
-	"bot-verify/internal/store"
+	"github.com/dkd-dobberkau/bot-verify/internal/catalog"
+	"github.com/dkd-dobberkau/bot-verify/internal/rdns"
+	"github.com/dkd-dobberkau/bot-verify/internal/store"
 )
 
 // Verdicts and methods, as they appear in the API.

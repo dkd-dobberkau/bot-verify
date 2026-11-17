@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"bot-verify/internal/catalog"
-	"bot-verify/internal/rdns"
-	"bot-verify/internal/store"
+	"github.com/dkd-dobberkau/bot-verify/internal/catalog"
+	"github.com/dkd-dobberkau/bot-verify/internal/rdns"
+	"github.com/dkd-dobberkau/bot-verify/internal/store"
 )
 
 type fakeRDNS struct {

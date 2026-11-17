@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"time"
 
-	"bot-verify/internal/catalog"
-	"bot-verify/internal/sources"
+	"github.com/dkd-dobberkau/bot-verify/internal/catalog"
+	"github.com/dkd-dobberkau/bot-verify/internal/sources"
 )
 
 // Refresh fetches every distinct source URL in the catalog once. A source

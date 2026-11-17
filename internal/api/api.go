@@ -10,9 +10,9 @@ import (
 	"net/netip"
 	"time"
 
-	"bot-verify/internal/catalog"
-	"bot-verify/internal/store"
-	"bot-verify/internal/verify"
+	"github.com/dkd-dobberkau/bot-verify/internal/catalog"
+	"github.com/dkd-dobberkau/bot-verify/internal/store"
+	"github.com/dkd-dobberkau/bot-verify/internal/verify"
 )
 
 // verifyTimeout bounds one verification, including the wait for a free

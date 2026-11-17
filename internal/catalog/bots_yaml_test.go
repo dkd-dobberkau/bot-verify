@@ -3,7 +3,7 @@ package catalog
 import (
 	"testing"
 
-	"bot-verify/internal/sources"
+	"github.com/dkd-dobberkau/bot-verify/internal/sources"
 )
 
 // catalogSize is the number of bots in goodbot-badbot's app/bot_claims.json

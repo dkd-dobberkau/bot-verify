@@ -1,4 +1,4 @@
-module bot-verify
+module github.com/dkd-dobberkau/bot-verify
 
 go 1.27
 

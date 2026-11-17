@@ -11,7 +11,7 @@ import (
 const MaxBodyBytes = 5 << 20
 
 // UserAgent identifies bot-verify to operators; main sets the version.
-var UserAgent = "bot-verify/dev (+https://goodbot-badbot.com)"
+var UserAgent = "bot-verify/dev (+https://github.com/dkd-dobberkau/bot-verify)"
 
 // FetchState is what a source told us last time, for conditional requests.
 type FetchState struct {
