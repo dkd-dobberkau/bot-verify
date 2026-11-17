@@ -1,14 +1,17 @@
 package catalog
 
-import "testing"
+import (
+	"testing"
+
+	"bot-verify/internal/sources"
+)
 
 // catalogSize is the number of bots in goodbot-badbot's app/bot_claims.json
 // on 2026-11-17, from which bots.yaml was derived.
 const catalogSize = 51
 
 func TestRepoBotsYAML(t *testing.T) {
-	known := func(f string) bool { return f == "google-prefixes" || f == "cidr-lines" }
-	cat, err := Load("../../bots.yaml", known)
+	cat, err := Load("../../bots.yaml", sources.KnownFormat)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
