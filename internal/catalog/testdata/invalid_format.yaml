@@ -1,0 +1,4 @@
+bots:
+  - id: formatbot
+    name: A
+    ip_sources: [{url: "https://a.example/x.json", format: weird}]

@@ -1,0 +1,4 @@
+bots:
+  - id: httpbot
+    name: A
+    ip_sources: [{url: "http://a.example/x.json", format: google-prefixes}]

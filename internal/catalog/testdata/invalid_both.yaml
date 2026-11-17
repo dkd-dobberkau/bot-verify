@@ -1,0 +1,2 @@
+bots:
+  - {id: bothbot, name: A, rdns_suffixes: [a.com], not_checkable: "no"}

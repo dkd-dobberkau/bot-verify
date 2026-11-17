@@ -1,0 +1,2 @@
+bots:
+  - {id: casebot, name: A, rdns_suffixes: [A.com]}

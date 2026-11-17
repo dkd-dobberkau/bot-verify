@@ -1,0 +1,19 @@
+bots:
+  - id: googlebot
+    name: Googlebot
+    ua_tokens: [Googlebot]
+    ip_sources:
+      - url: https://developers.google.com/static/search/apis/ipranges/googlebot.json
+        format: google-prefixes
+    rdns_suffixes: [googlebot.com, google.com]
+    docs: https://developers.google.com/search/docs/crawling-indexing/verifying-googlebot
+  - id: petalbot
+    name: PetalBot
+    ua_tokens: [PetalBot]
+    rdns_suffixes: [petalsearch.com]
+    docs: https://webmaster.petalsearch.com/site/petalbot
+  - id: awario
+    name: Awario
+    ua_tokens: [AwarioBot]
+    not_checkable: "Operator says: do not try to identify the bots via IP"
+    docs: https://awario.com/bots.html

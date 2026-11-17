@@ -1,0 +1,2 @@
+bots:
+  - {id: Bad_Bot, name: A, rdns_suffixes: [a.com]}

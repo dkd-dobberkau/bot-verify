@@ -1,0 +1,3 @@
+bots:
+  - {id: dupbot, name: A, rdns_suffixes: [a.com]}
+  - {id: dupbot, name: B, rdns_suffixes: [b.com]}

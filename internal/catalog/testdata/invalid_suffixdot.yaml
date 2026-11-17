@@ -1,0 +1,2 @@
+bots:
+  - {id: dotbot, name: A, rdns_suffixes: [.a.com]}
