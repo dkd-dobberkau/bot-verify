@@ -47,12 +47,16 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 	rdnsTTL := flags.Duration("rdns-ttl", 15*time.Minute, "cache lifetime of reverse-DNS answers")
 	rdnsConcurrency := flags.Int("rdns-concurrency", 64, "maximum concurrent reverse-DNS checks")
 	showVersion := flags.Bool("version", false, "print version and exit")
+	probe := flags.Bool("probe", false, "check /healthz of the server at -listen and exit (container health check)")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
 	if *showVersion {
 		fmt.Fprintln(stdout, "bot-verify", version)
 		return nil
+	}
+	if *probe {
+		return probeHealth(*listen)
 	}
 	if *refresh <= 0 || *rdnsTTL <= 0 || *rdnsConcurrency <= 0 {
 		return errors.New("-refresh, -rdns-ttl and -rdns-concurrency must be positive")
@@ -100,4 +104,25 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	return server.Shutdown(shutdownCtx)
+}
+
+// probeHealth GETs /healthz on the listen address; an empty host means localhost.
+func probeHealth(listen string) error {
+	host, port, err := net.SplitHostPort(listen)
+	if err != nil {
+		return err
+	}
+	if host == "" {
+		host = "127.0.0.1"
+	}
+	client := &http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Get("http://" + net.JoinHostPort(host, port) + "/healthz")
+	if err != nil {
+		return err
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("healthz status %d", resp.StatusCode)
+	}
+	return nil
 }

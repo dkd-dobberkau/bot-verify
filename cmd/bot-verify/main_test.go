@@ -67,3 +67,20 @@ func TestRunServesHealthz(t *testing.T) {
 		t.Fatal("run did not return after cancel")
 	}
 }
+
+func TestProbe(t *testing.T) {
+	healthy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/healthz" {
+			http.NotFound(w, r)
+		}
+	}))
+	defer healthy.Close()
+	addr := strings.TrimPrefix(healthy.URL, "http://")
+	if err := run(context.Background(), []string{"-probe", "-listen", addr}, io.Discard); err != nil {
+		t.Errorf("probe of healthy server: %v", err)
+	}
+	healthy.Close()
+	if err := run(context.Background(), []string{"-probe", "-listen", addr}, io.Discard); err == nil {
+		t.Error("probe of stopped server returned nil")
+	}
+}

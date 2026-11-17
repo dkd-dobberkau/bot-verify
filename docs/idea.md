@@ -1,5 +1,7 @@
 # bot-verify — idea and what we know (2026-11-17)
 
+Status: v0.1.0 implemented (2026-11-18), see README.md.
+
 ## Where it comes from
 
 goodbot-badbot.com logs crawlers that walk into honeypots despite robots.txt.
