@@ -196,6 +196,9 @@ func (h *Handler) refused(m *dns.Msg) *dns.Msg {
 	return m
 }
 
+// soa uses the store version as serial. It restarts with the process and
+// differs between instances, which is harmless: the zone offers no transfers
+// (AXFR/IXFR), so no secondary compares serials.
 func (h *Handler) soa() dns.RR {
 	serial := uint32(h.cfg.Store.Version())
 	if serial == 0 {

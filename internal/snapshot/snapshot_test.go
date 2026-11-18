@@ -153,7 +153,7 @@ func TestWriteIsAtomic(t *testing.T) {
 	os.Chmod(dir, 0o700)
 
 	stray := line(t, urlB, now, "203.0.113.0/24")
-	if err := os.WriteFile(filepath.Join(dir, ".snapshot-123.tmp"), []byte(stray+"\n"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, ".s.jsonl-123.tmp"), []byte(stray+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	st := store.New()
@@ -209,5 +209,36 @@ func TestKeepWithoutPathIsOff(t *testing.T) {
 	Keep("", testCatalog(), st, slog.New(slog.DiscardHandler))()
 	if entries, _ := os.ReadDir(dir); len(entries) != 0 {
 		t.Errorf("files written with snapshots off: %v", entries)
+	}
+}
+
+func TestKeepRemovesOwnLeftoverTempFiles(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "s.jsonl")
+	own := filepath.Join(dir, ".s.jsonl-123.tmp")
+	other := filepath.Join(dir, ".other.jsonl-456.tmp")
+	for _, f := range []string{own, other} {
+		if err := os.WriteFile(f, []byte("partial"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	Keep(path, testCatalog(), store.New(), slog.New(slog.DiscardHandler))
+	if _, err := os.Stat(own); err == nil {
+		t.Error("leftover temp file of this snapshot was not removed")
+	}
+	if _, err := os.Stat(other); err != nil {
+		t.Error("temp file of another snapshot in the same directory was removed")
+	}
+}
+
+func TestWriteTempFileIsNamedAfterSnapshot(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.Chmod(dir, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(dir, 0o700) })
+	err := Write(filepath.Join(dir, "s.jsonl"), testCatalog(), filledStore())
+	if err == nil || !strings.Contains(err.Error(), ".s.jsonl-") {
+		t.Errorf("Write error = %v, want one naming the temp pattern .s.jsonl-*.tmp", err)
 	}
 }

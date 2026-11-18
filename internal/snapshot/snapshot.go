@@ -12,6 +12,7 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/dkd-dobberkau/bot-verify/internal/catalog"
@@ -40,7 +41,7 @@ type record struct {
 // file in the same directory and renames it over path, so a crash leaves
 // either the old or the new file, never half of one.
 func Write(path string, cat *catalog.Catalog, st *store.Store) error {
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".snapshot-*.tmp")
+	tmp, err := os.CreateTemp(filepath.Dir(path), tempPrefix(path)+"*"+tempSuffix)
 	if err != nil {
 		return err
 	}
@@ -52,7 +53,45 @@ func Write(path string, cat *catalog.Catalog, st *store.Store) error {
 	if err := tmp.Close(); err != nil {
 		return err
 	}
-	return os.Rename(tmp.Name(), path)
+	if err := os.Rename(tmp.Name(), path); err != nil {
+		return err
+	}
+	return syncDir(filepath.Dir(path))
+}
+
+// syncDir makes the rename durable; without it a power loss can bring back
+// the previous snapshot. The file itself is synced before the rename.
+func syncDir(dir string) error {
+	d, err := os.Open(dir)
+	if err != nil {
+		return err
+	}
+	defer d.Close()
+	return d.Sync()
+}
+
+// Temp files are named after their snapshot, so cleaning up one snapshot's
+// leftovers never touches another's in the same directory.
+const tempSuffix = ".tmp"
+
+func tempPrefix(path string) string { return "." + filepath.Base(path) + "-" }
+
+// removeLeftovers deletes temp files a crashed Write left behind for path.
+func removeLeftovers(path string) (removed int, err error) {
+	entries, err := os.ReadDir(filepath.Dir(path))
+	if err != nil {
+		return 0, err
+	}
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.Type().IsRegular() && strings.HasPrefix(name, tempPrefix(path)) && strings.HasSuffix(name, tempSuffix) {
+			if err := os.Remove(filepath.Join(filepath.Dir(path), name)); err != nil {
+				return removed, err
+			}
+			removed++
+		}
+	}
+	return removed, nil
 }
 
 func writeLines(tmp *os.File, cat *catalog.Catalog, st *store.Store) error {
@@ -175,6 +214,11 @@ func sourceURLs(cat *catalog.Catalog) []string {
 func Keep(path string, cat *catalog.Catalog, st *store.Store, logger *slog.Logger) (afterRefresh func()) {
 	if path == "" {
 		return func() {}
+	}
+	if removed, err := removeLeftovers(path); err != nil {
+		logger.Warn("snapshot temp file cleanup failed", "error", err.Error())
+	} else if removed > 0 {
+		logger.Info("snapshot temp files removed", "removed", removed)
 	}
 	loaded, warnings, err := Load(path, cat, st, time.Now())
 	for _, warning := range warnings {

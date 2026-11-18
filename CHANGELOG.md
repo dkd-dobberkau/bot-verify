@@ -12,6 +12,8 @@
   `/healthz` count fresh lists only.
 - `-snapshot <path>` on both binaries keeps the lists in a JSONL file for a
   warm start; `/readyz` is ready as soon as one fresh list is loaded.
+  Temp files a crash left behind are removed at start, and the directory
+  is synced after each write so a power loss cannot bring back an older file.
 
 - Fix: a transient A-record failure during forward confirmation was reported
   as "not found" by the merged A+AAAA lookup and became a cached `refuted` for
