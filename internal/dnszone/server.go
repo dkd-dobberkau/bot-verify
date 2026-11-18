@@ -47,6 +47,7 @@ type Counters struct {
 	Refused   atomic.Uint64
 	ServFail  atomic.Uint64
 	FormErr   atomic.Uint64
+	NotImp    atomic.Uint64 // opcodes other than QUERY
 	Truncated atomic.Uint64 // rate-limited UDP replies
 }
 
@@ -54,7 +55,7 @@ type Counters struct {
 func (c *Counters) LogAttrs() []any {
 	return []any{"queries", c.Queries.Load(), "confirmed", c.Confirmed.Load(), "noerror", c.NoError.Load(),
 		"nxdomain", c.NXDomain.Load(), "refused", c.Refused.Load(), "servfail", c.ServFail.Load(),
-		"formerr", c.FormErr.Load(), "truncated", c.Truncated.Load()}
+		"formerr", c.FormErr.Load(), "notimp", c.NotImp.Load(), "truncated", c.Truncated.Load()}
 }
 
 // Handler answers the verify zone authoritatively.
@@ -115,11 +116,20 @@ func (h *Handler) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 		}
 		m.Truncate(size)
 	}
+	// After Truncate, which turns compression off for replies that fit
+	// without it: compressing every reply roughly halves the larger ones,
+	// and with them what a spoofed query can reflect.
+	m.Compress = true
 	w.WriteMsg(m)
 }
 
 func (h *Handler) answer(req *dns.Msg) *dns.Msg {
 	m := new(dns.Msg)
+	if req.Opcode != dns.OpcodeQuery {
+		m.SetRcode(req, dns.RcodeNotImplemented)
+		h.counters.NotImp.Add(1)
+		return m
+	}
 	if len(req.Question) != 1 {
 		m.SetRcode(req, dns.RcodeFormatError)
 		h.counters.FormErr.Add(1)
@@ -134,6 +144,11 @@ func (h *Handler) answer(req *dns.Msg) *dns.Msg {
 		return h.refused(m)
 	}
 	qname := strings.ToLower(q.Name)
+	// Compare wire labels first: ParseName splits the presentation form, in
+	// which an escaped dot ("foo\.verify") would look like two labels.
+	if !dns.IsSubDomain(h.zone, qname) {
+		return h.refused(m)
+	}
 	if addrs, ok := h.glue[qname]; ok {
 		m.Authoritative = true
 		m.Answer = glueRecords(qname, addrs, q.Qtype)

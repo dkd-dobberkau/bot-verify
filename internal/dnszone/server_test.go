@@ -257,3 +257,61 @@ func TestLimiterEvictsIdleEntriesWhenFull(t *testing.T) {
 		t.Error("a new source was refused although every entry had been idle long enough to refill")
 	}
 }
+
+func TestServe_AnswersAreCompressed(t *testing.T) {
+	cfg := testConfig()
+	cfg.NS = []NameServer{
+		{Name: "ns1." + zone, Addrs: []netip.Addr{netip.MustParseAddr("192.0.2.53"), netip.MustParseAddr("2001:db8::53")}},
+		{Name: "ns2." + zone, Addrs: []netip.Addr{netip.MustParseAddr("192.0.2.54"), netip.MustParseAddr("2001:db8::54")}},
+	}
+	srv := startServer(t, cfg)
+	query := new(dns.Msg)
+	query.SetQuestion(zone+".", dns.TypeNS)
+	packed, err := query.Pack()
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn, err := net.Dial("udp", srv.udp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	conn.SetDeadline(time.Now().Add(2 * time.Second))
+	if _, err := conn.Write(packed); err != nil {
+		t.Fatal(err)
+	}
+	buf := make([]byte, 4096)
+	n, err := conn.Read(buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp := new(dns.Msg)
+	if err := resp.Unpack(buf[:n]); err != nil {
+		t.Fatal(err)
+	}
+	resp.Compress = false
+	uncompressed, _ := resp.Pack()
+	if len(resp.Answer) != 2 || len(resp.Extra) != 4 || n >= len(uncompressed) {
+		t.Errorf("apex NS reply: %d bytes on the wire, %d uncompressed, %d NS, %d glue; want compressed", n, len(uncompressed), len(resp.Answer), len(resp.Extra))
+	}
+}
+
+func TestServe_EscapedDotOutsideZoneIsRefused(t *testing.T) {
+	srv := startServer(t, testConfig())
+	// Wire labels "x", "foo.verify", "example": not under verify.example.
+	for _, qname := range []string{`x.foo\.verify.example.`, `5.64.249.66.listbot\.verify.example.`} {
+		if resp := exchange(t, "udp", srv.udp, qname, dns.TypeA); resp.Rcode != dns.RcodeRefused || resp.Authoritative {
+			t.Errorf("%s: rcode %s AA %v, want REFUSED without AA", qname, dns.RcodeToString[resp.Rcode], resp.Authoritative)
+		}
+	}
+}
+
+func TestServe_NotifyIsNotImplemented(t *testing.T) {
+	srv := startServer(t, testConfig())
+	m := new(dns.Msg)
+	m.SetNotify(zone + ".")
+	resp, _, err := (&dns.Client{Timeout: 2 * time.Second}).Exchange(m, srv.udp)
+	if err != nil || resp.Rcode != dns.RcodeNotImplemented {
+		t.Errorf("NOTIFY: %v, %v; want NOTIMP", resp, err)
+	}
+}
