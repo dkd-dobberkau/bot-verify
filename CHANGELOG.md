@@ -15,6 +15,15 @@
   exists" can refute; SERVFAIL, lame referral, truncation, malformed records
   and timeouts give not_checkable.
 - CI: actions/checkout and actions/setup-go pinned by commit SHA.
+- IPv4-mapped prefixes in operator lists are treated as IPv4, so the IPv4
+  breadth limit applies and they match the queried addresses.
+- A source may list at most 50,000 prefixes; /v1/dataset is served from a
+  cache rebuilt only when a list changes.
+- Request headers are capped at 8 KiB.
+- New /readyz: 503 until the first refresh cycle and while no list is loaded.
+- Concurrent checks of the same IP and bot share one reverse-DNS lookup.
+- Base images pinned by digest; Dependabot keeps digests, action SHAs and Go
+  modules current.
 - Docs: verdict logic (`docs/verdicts.md`), per-bot rationale (`docs/bots.md`),
   CONTRIBUTING.md, SECURITY.md.
 - Module path `github.com/dkd-dobberkau/bot-verify`; GitHub Actions CI with
