@@ -76,6 +76,26 @@ const tempSuffix = ".tmp"
 
 func tempPrefix(path string) string { return "." + filepath.Base(path) + "-" }
 
+// isOwnTemp reports whether name is a temp file Write created for path:
+// os.CreateTemp fills the "*" with decimal digits only, so ".s.jsonl-dns-1.tmp"
+// (snapshot "s.jsonl-dns") is not mistaken for one of "s.jsonl".
+func isOwnTemp(name, path string) bool {
+	random, ok := strings.CutPrefix(name, tempPrefix(path))
+	if !ok {
+		return false
+	}
+	random, ok = strings.CutSuffix(random, tempSuffix)
+	if !ok || random == "" {
+		return false
+	}
+	for _, c := range random {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
+}
+
 // removeLeftovers deletes temp files a crashed Write left behind for path.
 func removeLeftovers(path string) (removed int, err error) {
 	entries, err := os.ReadDir(filepath.Dir(path))
@@ -84,7 +104,7 @@ func removeLeftovers(path string) (removed int, err error) {
 	}
 	for _, entry := range entries {
 		name := entry.Name()
-		if entry.Type().IsRegular() && strings.HasPrefix(name, tempPrefix(path)) && strings.HasSuffix(name, tempSuffix) {
+		if entry.Type().IsRegular() && isOwnTemp(name, path) {
 			if err := os.Remove(filepath.Join(filepath.Dir(path), name)); err != nil {
 				return removed, err
 			}
@@ -188,8 +208,12 @@ func parseLine(raw []byte, known map[string]bool, now time.Time) (string, store.
 	if err != nil {
 		return entry.URL, store.Snapshot{}, "prefixes fail validation"
 	}
-	return entry.URL, store.Snapshot{Prefixes: prefixes, FetchedAt: fetchedAt,
-		State: sources.FetchState{ETag: entry.ETag, LastModified: entry.LastModified}}, ""
+	// The etag and last_modified fields are not restored. A 304 renews the
+	// stored prefixes, which proves they match the origin only if this process
+	// received the validator together with them; validators from the file
+	// would let a 304 keep any prefixes the file names. The first refresh
+	// after a restart is therefore unconditional.
+	return entry.URL, store.Snapshot{Prefixes: prefixes, FetchedAt: fetchedAt}, ""
 }
 
 // sourceURLs returns the catalog's distinct source URLs in catalog order.

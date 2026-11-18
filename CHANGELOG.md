@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Fix (security audit run 2): a snapshot line's ETag or Last-Modified made the
+  origin's 304 renew the file's prefixes on every refresh, so anyone able to
+  write the snapshot could keep chosen ranges `confirmed` (or real crawlers
+  `refuted`) past the 7-day limit and across restarts. Validators are no
+  longer restored; the first refresh after a start fetches every list in full.
+- Fix: snapshot temp-file cleanup no longer removes the temp files of a
+  sibling snapshot whose name starts with the same name (`s.jsonl-dns`).
+
 - New `bot-verify-dns` binary and `dns` image target: an authoritative DNS
   zone `<reversed address>.<bot-id>.<zone>` answering `A 127.0.0.2` for
   confirmed, NXDOMAIN for refuted and NODATA for not checkable, with SOA/NS,

@@ -86,8 +86,11 @@ file after every refresh cycle that changed them (temp file and rename, mode
 0600) and read back at start, before the first fetch. Each line is checked
 like a fresh fetch; lines that are malformed, older than 7 days or for a source
 no longer in `bots.yaml` are dropped with a warning. The first refresh still
-runs at once and is then mostly answered with 304. In Docker, mount a volume
-writable by the nonroot user (UID 65532) for the file.
+runs at once and fetches every list in full: ETag and Last-Modified are not
+restored from the file, so a 304 can only confirm lists this process fetched
+itself. Until that refresh, the file decides verdicts, so keep it writable by
+the service only. In Docker, mount a volume writable by the nonroot user
+(UID 65532) for the file.
 
 ## API
 

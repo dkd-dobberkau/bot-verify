@@ -80,7 +80,9 @@ of the same IP and bot share one lookup and one slot.
   cycle that changed them, and read back at start. Every line is checked like
   a fresh fetch (parse, IPv4-mapped normalisation, breadth limit, prefix cap);
   lines that are malformed, older than 7 days, dated in the future, or for a
-  URL no longer in `bots.yaml` are dropped.
+  URL no longer in `bots.yaml` are dropped. ETag and Last-Modified are not
+  restored, so the first refresh after a start replaces every restored list
+  with the origin's current one; a 304 never renews prefixes from the file.
 
 ## DNS zone (`internal/dnszone`)
 

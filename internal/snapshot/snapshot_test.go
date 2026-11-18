@@ -1,8 +1,11 @@
 package snapshot
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -70,7 +73,8 @@ func TestRoundTrip(t *testing.T) {
 		if !ok {
 			t.Fatalf("%s not loaded", url)
 		}
-		if !reflect.DeepEqual(got.Prefixes, want.Prefixes) || got.State != want.State {
+		// Validators are written but not restored (see parseLine).
+		if !reflect.DeepEqual(got.Prefixes, want.Prefixes) || got.State != (sources.FetchState{}) {
 			t.Errorf("%s: got %+v, want %+v", url, got, want)
 		}
 		if !got.FetchedAt.Equal(want.FetchedAt.Truncate(time.Second)) {
@@ -240,5 +244,50 @@ func TestWriteTempFileIsNamedAfterSnapshot(t *testing.T) {
 	err := Write(filepath.Join(dir, "s.jsonl"), testCatalog(), filledStore())
 	if err == nil || !strings.Contains(err.Error(), ".s.jsonl-") {
 		t.Errorf("Write error = %v, want one naming the temp pattern .s.jsonl-*.tmp", err)
+	}
+}
+
+// A snapshot line must not bring its own conditional-request validators: a
+// 304 to them would renew prefixes the origin never served.
+func TestRestoredPrefixesAreReplacedByTheOrigin(t *testing.T) {
+	origin := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("ETag", `"v1"`)
+		http.ServeContent(w, r, "list.txt", time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC), strings.NewReader("66.249.64.0/27\n"))
+	}))
+	defer origin.Close()
+	cat := catalog.New([]catalog.Bot{{ID: "abot", Name: "ABot", IPSources: []catalog.IPSource{{URL: origin.URL + "/list.txt", Format: "cidr-lines"}}}})
+	decoy, real := netip.MustParseAddr("203.0.113.7"), netip.MustParseAddr("66.249.64.5")
+
+	validators := map[string][2]string{"etag *": {"*", ""}, "origin etag": {`"v1"`, ""}, "future last_modified": {"", "Fri, 31 Dec 2100 23:59:59 GMT"}}
+	for name, v := range validators {
+		path := filepath.Join(t.TempDir(), "s.jsonl")
+		line, _ := json.Marshal(map[string]any{"url": origin.URL + "/list.txt", "fetched_at": time.Now().Add(-time.Hour).UTC().Format(time.RFC3339),
+			"etag": v[0], "last_modified": v[1], "prefixes": []string{"203.0.113.0/24"}})
+		if err := os.WriteFile(path, append(line, '\n'), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		st := store.New()
+		Keep(path, cat, st, slog.New(slog.DiscardHandler))
+		if errs := store.Refresh(context.Background(), cat, origin.Client(), st, time.Now); len(errs) != 0 {
+			t.Fatalf("%s: refresh: %v", name, errs)
+		}
+		if _, matched, _ := st.Lookup(origin.URL+"/list.txt", decoy, time.Now()); matched {
+			t.Errorf("%s: restored decoy prefix survived the first refresh", name)
+		}
+		if _, matched, _ := st.Lookup(origin.URL+"/list.txt", real, time.Now()); !matched {
+			t.Errorf("%s: the origin's list did not replace the restored one", name)
+		}
+	}
+}
+
+func TestKeepLeavesSiblingSnapshotTempFiles(t *testing.T) {
+	dir := t.TempDir()
+	sibling := filepath.Join(dir, ".s.jsonl-dns-123.tmp") // temp file of snapshot "s.jsonl-dns"
+	if err := os.WriteFile(sibling, []byte("partial"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	Keep(filepath.Join(dir, "s.jsonl"), testCatalog(), store.New(), slog.New(slog.DiscardHandler))
+	if _, err := os.Stat(sibling); err != nil {
+		t.Error("temp file of the sibling snapshot s.jsonl-dns was removed")
 	}
 }
