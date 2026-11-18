@@ -166,12 +166,21 @@ func validDomain(name string) bool {
 	return len(name) <= 253 && domainPattern.MatchString(name)
 }
 
-// checkNSLabels rejects an in-zone NS name whose label next to the zone is a
-// bot id: the handler would answer it as glue, shadowing that bot's names.
+// checkNSLabels rejects in-zone NS names the zone cannot serve: the apex
+// (glue would replace its SOA and NS answers), a name without addresses
+// (the zone would answer NODATA for its own name server), and a name whose
+// label next to the zone is a bot id (glue would shadow that bot's names).
 func checkNSLabels(zone string, nameServers nsFlag, cat *catalog.Catalog) error {
 	for _, ns := range nameServers {
 		name := dnszone.ParseName(ns.Name, zone)
-		if name.Kind == dnszone.Outside || name.Bot == "" {
+		switch {
+		case name.Kind == dnszone.Outside:
+			continue
+		case name.Kind == dnszone.Apex:
+			return fmt.Errorf("-ns %s: the zone apex cannot be a name server name", ns.Name)
+		case len(ns.Addrs) == 0:
+			return fmt.Errorf("-ns %s: a name server inside the zone needs its addresses (name=ip[,ip])", ns.Name)
+		case name.Bot == "":
 			continue
 		}
 		if _, ok := cat.Get(name.Bot); ok {

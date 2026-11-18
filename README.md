@@ -180,7 +180,7 @@ oai-searchbot, claudebot, claude-user, shapbot, perplexitybot, duckduckbot.
 | `-listen` | `:5353` | UDP and TCP address |
 | `-bots` | `bots.yaml` | Bot catalog |
 | `-zone` | required | Zone name |
-| `-ns` | required | Name server, repeatable; `name=ip[,ip]` serves glue for a name inside the zone. Its label next to the zone must not be a bot id |
+| `-ns` | required | Name server, repeatable: `name`, or `name=ip[,ip]`. A name inside the zone needs its addresses (the zone serves them), must not be the apex, and its label next to the zone must not be a bot id |
 | `-hostmaster` | required | SOA mailbox as a domain name |
 | `-refresh` | `6h` | Interval between list refreshes |
 | `-snapshot` | | JSONL snapshot, as for the API |

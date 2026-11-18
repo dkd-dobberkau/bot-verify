@@ -110,6 +110,27 @@ func TestRunRejectsNSLabelClash(t *testing.T) {
 	}
 }
 
+func TestRunRejectsUnusableNS(t *testing.T) {
+	bots := writeCatalog(t, "https://ops.example/list.json")
+	cases := map[string]string{
+		"ns is the zone apex":        "Verify.Example.=192.0.2.53",
+		"in-zone ns without address": "ns2." + zone,
+	}
+	for name, ns := range cases {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		if err := run(ctx, append(zoneArgs(bots), "-ns", ns), io.Discard); err == nil {
+			t.Errorf("%s: run returned nil", name)
+		}
+	}
+	// A name server outside the zone needs no address here.
+	addr, stop := startRun(t, append(zoneArgs(bots), "-ns", "ns.other.example"))
+	defer stop()
+	if addr == "" {
+		t.Error("no listen address with an out-of-zone NS")
+	}
+}
+
 func TestRunRejectsBadFlags(t *testing.T) {
 	bots := writeCatalog(t, "https://ops.example/list.json")
 	cases := map[string][]string{
