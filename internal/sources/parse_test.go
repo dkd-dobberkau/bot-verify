@@ -158,3 +158,23 @@ func TestRejectsTooManyPrefixes(t *testing.T) {
 		t.Errorf("a list with %d prefixes was accepted, limit is %d", MaxPrefixes+1, MaxPrefixes)
 	}
 }
+
+func TestValidatePrefixes(t *testing.T) {
+	got, err := ValidatePrefixes(prefixes("::ffff:198.51.100.0/120"))
+	if err != nil || !reflect.DeepEqual(got, prefixes("198.51.100.0/24")) {
+		t.Errorf("mapped: got %v, %v, want [198.51.100.0/24]", got, err)
+	}
+	if _, err := ValidatePrefixes(prefixes("0.0.0.0/0")); err == nil {
+		t.Error("0.0.0.0/0 accepted")
+	}
+	if _, err := ValidatePrefixes(nil); !errors.Is(err, ErrNoPrefixes) {
+		t.Errorf("empty: err = %v, want ErrNoPrefixes", err)
+	}
+	many := make([]netip.Prefix, MaxPrefixes+1)
+	for i := range many {
+		many[i] = netip.PrefixFrom(netip.AddrFrom4([4]byte{10, byte(i >> 16), byte(i >> 8), byte(i)}), 32)
+	}
+	if _, err := ValidatePrefixes(many); err == nil {
+		t.Errorf("%d prefixes accepted", len(many))
+	}
+}

@@ -68,13 +68,9 @@ func parseGooglePrefixes(body []byte) ([]netip.Prefix, error) {
 		if err != nil {
 			return nil, fmt.Errorf("google-prefixes: entry %d: %w", i, err)
 		}
-		prefix, err = acceptPrefix(prefix)
-		if err != nil {
-			return nil, fmt.Errorf("google-prefixes: entry %d: %w", i, err)
-		}
 		out = append(out, prefix)
 	}
-	return nonEmpty(out)
+	return ValidatePrefixes(out)
 }
 
 func parseCIDRLines(body []byte) ([]netip.Prefix, error) {
@@ -88,13 +84,9 @@ func parseCIDRLines(body []byte) ([]netip.Prefix, error) {
 		if err != nil {
 			return nil, fmt.Errorf("cidr-lines: line %d: %w", n+1, err)
 		}
-		prefix, err = acceptPrefix(prefix)
-		if err != nil {
-			return nil, fmt.Errorf("cidr-lines: line %d: %w", n+1, err)
-		}
 		out = append(out, prefix)
 	}
-	return nonEmpty(out)
+	return ValidatePrefixes(out)
 }
 
 func parseIPOrPrefix(text string) (netip.Prefix, error) {
@@ -106,6 +98,22 @@ func parseIPOrPrefix(text string) (netip.Prefix, error) {
 		return netip.Prefix{}, err
 	}
 	return addr.Unmap().Prefix(addr.Unmap().BitLen())
+}
+
+// ValidatePrefixes applies the acceptance every parsed list goes through:
+// IPv4-mapped normalisation, the breadth limit, host-bit masking, and the
+// empty and MaxPrefixes checks. Snapshot loading reuses it, so a list read
+// back from disk is held to the same rules as a fresh fetch.
+func ValidatePrefixes(prefixes []netip.Prefix) ([]netip.Prefix, error) {
+	out := make([]netip.Prefix, 0, len(prefixes))
+	for _, prefix := range prefixes {
+		accepted, err := acceptPrefix(prefix)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, accepted)
+	}
+	return nonEmpty(out)
 }
 
 // acceptPrefix normalises an IPv4-mapped IPv6 prefix to IPv4, so the IPv4
