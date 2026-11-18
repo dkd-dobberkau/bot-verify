@@ -34,6 +34,7 @@ func NewHandler(v *verify.Verifier, cat *catalog.Catalog, st *store.Store, logge
 	mux.HandleFunc("GET /v1/bots", h.bots)
 	mux.HandleFunc("GET /v1/dataset", h.dataset)
 	mux.HandleFunc("GET /healthz", h.healthz)
+	mux.HandleFunc("GET /readyz", h.readyz)
 	return logRequests(logger, securityHeaders(mux))
 }
 
@@ -121,9 +122,9 @@ func (h *handler) dataset(w http.ResponseWriter, _ *http.Request) {
 	writeCachedJSON(w, map[string]any{"generated_at": time.Now().UTC(), "bots": bots})
 }
 
-func (h *handler) healthz(w http.ResponseWriter, _ *http.Request) {
+// sourceCounts returns how many distinct source URLs are loaded, of how many.
+func (h *handler) sourceCounts() (loaded, total int) {
 	seen := make(map[string]bool)
-	loaded := 0
 	for _, bot := range h.catalog.Bots {
 		for _, src := range bot.IPSources {
 			if seen[src.URL] {
@@ -135,7 +136,27 @@ func (h *handler) healthz(w http.ResponseWriter, _ *http.Request) {
 			}
 		}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"status": "ok", "sources_loaded": loaded, "sources_total": len(seen)})
+	return loaded, len(seen)
+}
+
+// healthz is liveness: the process serves requests.
+func (h *handler) healthz(w http.ResponseWriter, _ *http.Request) {
+	loaded, total := h.sourceCounts()
+	writeJSON(w, http.StatusOK, map[string]any{"status": "ok", "sources_loaded": loaded, "sources_total": total})
+}
+
+// readyz is readiness: the first refresh cycle has finished and at least one
+// IP list is loaded. Before that, list-only bots get not_checkable.
+func (h *handler) readyz(w http.ResponseWriter, _ *http.Request) {
+	loaded, total := h.sourceCounts()
+	status, code := "ready", http.StatusOK
+	switch {
+	case !h.store.Refreshed():
+		status, code = "starting", http.StatusServiceUnavailable
+	case total > 0 && loaded == 0:
+		status, code = "no_sources_loaded", http.StatusServiceUnavailable
+	}
+	writeJSON(w, code, map[string]any{"status": status, "sources_loaded": loaded, "sources_total": total})
 }
 
 func writeCachedJSON(w http.ResponseWriter, body any) {

@@ -5,6 +5,7 @@ package store
 import (
 	"net/netip"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/dkd-dobberkau/bot-verify/internal/sources"
@@ -19,9 +20,13 @@ type Snapshot struct {
 
 // Store maps source URLs to their snapshots. It is safe for concurrent use.
 type Store struct {
-	mu    sync.RWMutex
-	snaps map[string]Snapshot
+	mu        sync.RWMutex
+	snaps     map[string]Snapshot
+	refreshed atomic.Bool
 }
+
+// Refreshed reports whether at least one refresh cycle has completed.
+func (s *Store) Refreshed() bool { return s.refreshed.Load() }
 
 // New returns an empty store.
 func New() *Store {

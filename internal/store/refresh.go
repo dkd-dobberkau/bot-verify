@@ -27,6 +27,7 @@ func Refresh(ctx context.Context, cat *catalog.Catalog, client *http.Client, s *
 			}
 		}
 	}
+	s.refreshed.Store(true)
 	return errs
 }
 

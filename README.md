@@ -114,7 +114,18 @@ reason, or its sources with `fetched_at` and all prefixes.
 
 ### `GET /healthz`
 
+Liveness, always 200 while the process serves requests; the container health
+check uses it.
+
 `{"status":"ok","sources_loaded":18,"sources_total":18}`
+
+### `GET /readyz`
+
+Readiness for load balancers: 503 with `"status":"starting"` until the first
+refresh cycle has finished, and 503 `"no_sources_loaded"` if no IP list could
+be loaded. Until then, bots checked only by IP list get `not_checkable`.
+
+`{"status":"ready","sources_loaded":18,"sources_total":18}`
 
 ## Adding a bot
 

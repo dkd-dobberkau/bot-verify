@@ -112,3 +112,15 @@ func TestRunSchedulerRunsImmediatelyAndStops(t *testing.T) {
 		t.Errorf("runs = %d, want 1", runs.Load())
 	}
 }
+
+func TestRefreshMarksStoreRefreshed(t *testing.T) {
+	_, srv, cat := setup(t, `{"prefixes":[]}`) // the source fails to parse
+	s := New()
+	if s.Refreshed() {
+		t.Fatal("new store reports refreshed")
+	}
+	Refresh(context.Background(), cat, srv.Client(), s, time.Now)
+	if !s.Refreshed() {
+		t.Error("store not marked refreshed after a completed refresh cycle, even a failed one")
+	}
+}

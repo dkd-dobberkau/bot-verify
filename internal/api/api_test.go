@@ -222,3 +222,30 @@ func TestVerifyHasDeadline(t *testing.T) {
 		t.Errorf("body = %v", body)
 	}
 }
+
+func readyz(t *testing.T, st *store.Store, cat *catalog.Catalog) (int, map[string]any) {
+	t.Helper()
+	srv := httptest.NewServer(NewHandler(verify.New(cat, st, noRDNS{}, time.Now), cat, st, slog.New(slog.DiscardHandler)))
+	defer srv.Close()
+	resp, body := get(t, srv, "/readyz")
+	return resp.StatusCode, body
+}
+
+func TestReadyz(t *testing.T) {
+	cat := catalog.New([]catalog.Bot{{ID: "listbot", Name: "ListBot",
+		IPSources: []catalog.IPSource{{URL: listURL, Format: "google-prefixes"}}}})
+	empty := catalog.New(nil)
+
+	st := store.New()
+	if code, body := readyz(t, st, cat); code != http.StatusServiceUnavailable || body["status"] != "starting" {
+		t.Errorf("before first refresh: %d %v, want 503 starting", code, body)
+	}
+	store.Refresh(context.Background(), empty, nil, st, time.Now) // completes a cycle, loads nothing
+	if code, body := readyz(t, st, cat); code != http.StatusServiceUnavailable || body["status"] != "no_sources_loaded" {
+		t.Errorf("refreshed, nothing loaded: %d %v, want 503 no_sources_loaded", code, body)
+	}
+	st.Set(listURL, store.Snapshot{Prefixes: []netip.Prefix{netip.MustParsePrefix("66.249.64.0/27")}, FetchedAt: time.Now()})
+	if code, body := readyz(t, st, cat); code != http.StatusOK || body["status"] != "ready" {
+		t.Errorf("refreshed and loaded: %d %v, want 200 ready", code, body)
+	}
+}
