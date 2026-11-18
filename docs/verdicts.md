@@ -57,6 +57,10 @@ Failures are never cached, so the next request tries again.
 - A fetch is rejected, and the **last good copy stays active**, when:
   - an `https://` source is redirected to anything but `https://` (the
     redirect is refused before the plain request is sent);
+  - the connection would go to a non-public address (loopback, private,
+    link-local, carrier-grade NAT, metadata endpoints), checked after DNS
+    resolution so redirects and DNS rebinding are covered. With an outbound
+    proxy configured (`HTTPS_PROXY`), the proxy owns this policy instead;
   - the status is not 200 or 304;
   - the body is larger than 5 MiB;
   - the body does not parse;

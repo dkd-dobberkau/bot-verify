@@ -8,6 +8,13 @@
 - Fix: operator lists were accepted after an `https://` source redirected to
   plain `http://`, so plaintext content could confirm spoofed IPs. Such
   redirects are now refused.
+- The list fetcher refuses connections to non-public addresses (loopback,
+  private, link-local, CGNAT), so a listed origin cannot point it at internal
+  endpoints by redirect or DNS. Skipped when an outbound proxy is configured.
+- Tests pin how the PTR step classifies resolver failures: only "no PTR
+  exists" can refute; SERVFAIL, lame referral, truncation, malformed records
+  and timeouts give not_checkable.
+- CI: actions/checkout and actions/setup-go pinned by commit SHA.
 - Docs: verdict logic (`docs/verdicts.md`), per-bot rationale (`docs/bots.md`),
   CONTRIBUTING.md, SECURITY.md.
 - Module path `github.com/dkd-dobberkau/bot-verify`; GitHub Actions CI with

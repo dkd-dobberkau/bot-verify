@@ -40,5 +40,8 @@ service for others.
 - **Public instances** run DNS lookups for addresses that callers choose. Run
   one behind a reverse proxy with per-client rate limiting. Each verify request
   is capped at 3 s and at most 64 reverse-DNS checks run at once.
+- **Outbound proxy:** when `HTTPS_PROXY` is set, the fetcher's refusal of
+  non-public destinations is off, because it connects to the proxy. The proxy
+  must then block internal destinations itself.
 - **Not covered:** Web Bot Auth signatures, and bots whose operators publish
   nothing.
