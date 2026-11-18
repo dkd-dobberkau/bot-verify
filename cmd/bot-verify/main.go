@@ -28,9 +28,7 @@ import (
 var version = "dev"
 
 // newFetchClient builds the client for operator sources; tests replace it.
-var newFetchClient = func() *http.Client {
-	return &http.Client{Timeout: 30 * time.Second, CheckRedirect: sources.RejectDowngrade}
-}
+var newFetchClient = func() *http.Client { return sources.NewClient(30 * time.Second) }
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

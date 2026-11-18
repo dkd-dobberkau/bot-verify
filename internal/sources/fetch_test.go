@@ -4,9 +4,11 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestFetchSendsConditionalHeaders(t *testing.T) {
@@ -121,5 +123,45 @@ func TestRejectDowngradeAllowsHTTPSRedirect(t *testing.T) {
 	res, err := Fetch(context.Background(), client, source.URL, FetchState{})
 	if err != nil || string(res.Body) != "192.0.2.1\n" {
 		t.Errorf("https redirect: body %q err %v", res.Body, err)
+	}
+}
+
+func TestIsPublicAddr(t *testing.T) {
+	cases := map[string]bool{
+		"66.249.66.1":          true,
+		"2001:4860:4801:10::1": true,
+		"127.0.0.1":            false,
+		"::1":                  false,
+		"10.1.2.3":             false,
+		"172.16.0.1":           false,
+		"192.168.1.1":          false,
+		"169.254.169.254":      false, // cloud metadata endpoint
+		"fe80::1":              false,
+		"fc00::1":              false,
+		"100.64.0.1":           false, // carrier-grade NAT
+		"0.0.0.0":              false,
+		"::ffff:127.0.0.1":     false,
+		"224.0.0.1":            false,
+	}
+	for addr, want := range cases {
+		if got := isPublicAddr(netip.MustParseAddr(addr)); got != want {
+			t.Errorf("isPublicAddr(%s) = %v, want %v", addr, got, want)
+		}
+	}
+}
+
+func TestNewClientRefusesNonPublicDestinations(t *testing.T) {
+	var hits atomic.Int32
+	internal := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { hits.Add(1) }))
+	defer internal.Close()
+	client := NewClient(5 * time.Second)
+	if _, err := Fetch(context.Background(), client, internal.URL, FetchState{}); err == nil {
+		t.Error("fetch client connected to a loopback address")
+	}
+	if hits.Load() != 0 {
+		t.Errorf("internal server was requested %d times, want 0", hits.Load())
+	}
+	if client.CheckRedirect == nil {
+		t.Error("NewClient must refuse https to http redirects")
 	}
 }
