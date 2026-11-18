@@ -47,7 +47,8 @@ claim any hostname.
 | Cache lifetime of definite answers | 15 min (`-rdns-ttl`) |
 | Cache size | 100,000 entries, then cleared |
 
-Failures are never cached, so the next request tries again.
+Failures are never cached, so the next request tries again. Concurrent checks
+of the same IP and bot share one lookup and one slot.
 
 ## IP lists (`internal/sources`, `internal/store`)
 

@@ -51,16 +51,25 @@ type cacheEntry struct {
 	expires  time.Time
 }
 
-// Checker runs forward-confirmed reverse-DNS checks with a result cache and a
-// cap on concurrent lookups.
+// flight is a lookup in progress; concurrent checks of the same key wait for it.
+type flight struct {
+	done     chan struct{}
+	outcome  Outcome
+	hostname string
+	err      error
+}
+
+// Checker runs forward-confirmed reverse-DNS checks with a result cache, a cap
+// on concurrent lookups, and one shared lookup per key at a time.
 type Checker struct {
 	resolver Resolver
 	ttl      time.Duration
 	slots    chan struct{}
 	now      func() time.Time
 
-	mu    sync.Mutex
-	cache map[string]cacheEntry
+	mu       sync.Mutex
+	cache    map[string]cacheEntry
+	inflight map[string]*flight
 }
 
 // NewChecker returns a checker. Definite answers are cached for ttl;
@@ -72,6 +81,7 @@ func NewChecker(r Resolver, ttl time.Duration, maxConcurrent int, now func() tim
 		slots:    make(chan struct{}, maxConcurrent),
 		now:      now,
 		cache:    make(map[string]cacheEntry),
+		inflight: make(map[string]*flight),
 	}
 }
 
@@ -84,6 +94,31 @@ func (c *Checker) Check(ctx context.Context, ip netip.Addr, suffixes []string) (
 	if entry, ok := c.cached(key); ok {
 		return entry.outcome, entry.hostname, nil
 	}
+	c.mu.Lock()
+	if f, ok := c.inflight[key]; ok {
+		c.mu.Unlock()
+		select {
+		case <-f.done:
+			return f.outcome, f.hostname, f.err
+		case <-ctx.Done():
+			return NoMatch, "", errors.Join(ErrLookup, ctx.Err())
+		}
+	}
+	f := &flight{done: make(chan struct{})}
+	c.inflight[key] = f
+	c.mu.Unlock()
+	defer func() {
+		c.mu.Lock()
+		delete(c.inflight, key)
+		c.mu.Unlock()
+		close(f.done)
+	}()
+	f.outcome, f.hostname, f.err = c.checkUncached(ctx, ip, suffixes, key)
+	return f.outcome, f.hostname, f.err
+}
+
+// checkUncached takes a lookup slot, runs the lookup and caches a definite answer.
+func (c *Checker) checkUncached(ctx context.Context, ip netip.Addr, suffixes []string, key string) (Outcome, string, error) {
 	select {
 	case c.slots <- struct{}{}:
 		defer func() { <-c.slots }()

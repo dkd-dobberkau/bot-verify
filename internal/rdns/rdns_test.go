@@ -176,3 +176,47 @@ func TestIPv6ForwardConfirmed(t *testing.T) {
 		t.Errorf("got %v, want Match", outcome)
 	}
 }
+
+// gatedResolver blocks every PTR lookup until release is closed.
+type gatedResolver struct {
+	fakeResolver
+	release chan struct{}
+	started chan struct{}
+}
+
+func (g *gatedResolver) LookupAddr(ctx context.Context, addr string) ([]string, error) {
+	g.started <- struct{}{}
+	<-g.release
+	return g.fakeResolver.LookupAddr(ctx, addr)
+}
+
+func TestConcurrentIdenticalChecksShareOneLookup(t *testing.T) {
+	g := &gatedResolver{
+		fakeResolver: fakeResolver{
+			ptr:     map[string][]string{"66.249.66.1": {"crawl.googlebot.com."}},
+			forward: map[string][]string{"crawl.googlebot.com.": {"66.249.66.1"}},
+		},
+		release: make(chan struct{}),
+		started: make(chan struct{}, 8),
+	}
+	now := t0
+	c := newChecker(g, &now)
+	results := make(chan Outcome, 3)
+	for i := 0; i < 3; i++ {
+		go func() {
+			outcome, _, _ := c.Check(context.Background(), googleIP, google)
+			results <- outcome
+		}()
+	}
+	<-g.started
+	time.Sleep(20 * time.Millisecond) // let the other two reach Check
+	close(g.release)
+	for i := 0; i < 3; i++ {
+		if outcome := <-results; outcome != Match {
+			t.Errorf("result %d = %v, want Match", i, outcome)
+		}
+	}
+	if g.ptrCalls != 1 {
+		t.Errorf("PTR lookups = %d, want 1 shared by three concurrent checks", g.ptrCalls)
+	}
+}
