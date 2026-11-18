@@ -19,6 +19,7 @@ import (
 	"github.com/dkd-dobberkau/bot-verify/internal/api"
 	"github.com/dkd-dobberkau/bot-verify/internal/catalog"
 	"github.com/dkd-dobberkau/bot-verify/internal/rdns"
+	"github.com/dkd-dobberkau/bot-verify/internal/snapshot"
 	"github.com/dkd-dobberkau/bot-verify/internal/sources"
 	"github.com/dkd-dobberkau/bot-verify/internal/store"
 	"github.com/dkd-dobberkau/bot-verify/internal/verify"
@@ -45,6 +46,7 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 	botsPath := flags.String("bots", "bots.yaml", "bot catalog file")
 	refresh := flags.Duration("refresh", 6*time.Hour, "interval between source refreshes")
 	rdnsTTL := flags.Duration("rdns-ttl", 15*time.Minute, "cache lifetime of reverse-DNS answers")
+	snapshotPath := flags.String("snapshot", "", "JSONL file to keep the lists in for a warm start (off when empty)")
 	rdnsConcurrency := flags.Int("rdns-concurrency", 64, "maximum concurrent reverse-DNS checks")
 	showVersion := flags.Bool("version", false, "print version and exit")
 	probe := flags.Bool("probe", false, "check /healthz of the server at -listen and exit (container health check)")
@@ -70,6 +72,7 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 		return err
 	}
 	st := store.New()
+	persist := snapshot.Keep(*snapshotPath, cat, st, logger)
 	client := newFetchClient()
 	go store.RunScheduler(ctx, *refresh, func(ctx context.Context) {
 		errs := store.Refresh(ctx, cat, client, st, time.Now)
@@ -77,6 +80,7 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 			logger.Warn("source refresh failed", "error", err.Error())
 		}
 		logger.Info("sources refreshed", "failed", len(errs))
+		persist()
 	})
 
 	checker := rdns.NewChecker(net.DefaultResolver, *rdnsTTL, *rdnsConcurrency, time.Now)

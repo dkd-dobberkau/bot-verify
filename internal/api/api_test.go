@@ -253,6 +253,20 @@ func TestReadyz(t *testing.T) {
 		IPSources: []catalog.IPSource{{URL: listURL, Format: "google-prefixes"}}}})
 	empty := catalog.New(nil)
 
+	warm := store.New() // a list loaded from a snapshot, before any refresh
+	warm.Set(listURL, store.Snapshot{Prefixes: []netip.Prefix{netip.MustParsePrefix("66.249.64.0/27")}, FetchedAt: time.Now()})
+	if code, body := readyz(t, warm, cat); code != http.StatusOK || body["status"] != "ready" {
+		t.Errorf("loaded before first refresh: %d %v, want 200 ready", code, body)
+	}
+	if code, body := readyz(t, store.New(), empty); code != http.StatusServiceUnavailable || body["status"] != "starting" {
+		t.Errorf("no sources, before first refresh: %d %v, want 503 starting", code, body)
+	}
+	noSources := store.New()
+	store.Refresh(context.Background(), empty, nil, noSources, time.Now)
+	if code, body := readyz(t, noSources, empty); code != http.StatusOK || body["status"] != "ready" {
+		t.Errorf("no sources, refreshed: %d %v, want 200 ready", code, body)
+	}
+
 	st := store.New()
 	if code, body := readyz(t, st, cat); code != http.StatusServiceUnavailable || body["status"] != "starting" {
 		t.Errorf("before first refresh: %d %v, want 503 starting", code, body)

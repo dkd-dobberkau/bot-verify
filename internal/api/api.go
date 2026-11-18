@@ -166,15 +166,18 @@ func (h *handler) healthz(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"status": "ok", "sources_loaded": loaded, "sources_total": total})
 }
 
-// readyz is readiness: the first refresh cycle has finished and at least one
-// IP list is loaded. Before that, list-only bots get not_checkable.
+// readyz is readiness: at least one IP list is loaded and fresh, which a
+// snapshot can give before the first refresh cycle. A catalog without
+// sources is ready once a cycle has run. Until then, list-only bots get
+// not_checkable.
 func (h *handler) readyz(w http.ResponseWriter, _ *http.Request) {
 	loaded, total := h.sourceCounts()
 	status, code := "ready", http.StatusOK
 	switch {
+	case loaded > 0, total == 0 && h.store.Refreshed():
 	case !h.store.Refreshed():
 		status, code = "starting", http.StatusServiceUnavailable
-	case total > 0 && loaded == 0:
+	default:
 		status, code = "no_sources_loaded", http.StatusServiceUnavailable
 	}
 	writeJSON(w, code, map[string]any{"status": status, "sources_loaded": loaded, "sources_total": total})

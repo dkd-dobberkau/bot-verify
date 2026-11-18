@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -66,6 +67,103 @@ func TestRunServesHealthz(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("run did not return after cancel")
+	}
+}
+
+// startRun runs run with args and returns the HTTP address it listens on and
+// a stop function that cancels it and checks it returned nil.
+func startRun(t *testing.T, args ...string) (addr string, stop func()) {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	out, stdout := io.Pipe()
+	done := make(chan error, 1)
+	go func() {
+		err := run(ctx, append([]string{"-listen", "127.0.0.1:0"}, args...), stdout)
+		stdout.Close() // a run that fails before listening must not leave the reader blocked
+		done <- err
+	}()
+	line, err := bufio.NewReader(out).ReadString('\n')
+	if err != nil {
+		cancel()
+		t.Fatalf("reading listen line: %v (run: %v)", err, <-done)
+	}
+	go io.Copy(io.Discard, out)
+	return strings.TrimSpace(strings.TrimPrefix(line, "listening on ")), func() {
+		t.Helper()
+		cancel()
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Errorf("run: %v", err)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("run did not return after cancel")
+		}
+	}
+}
+
+func sourcesLoaded(addr string) (int, bool) {
+	resp, err := http.Get("http://" + addr + "/healthz")
+	if err != nil {
+		return 0, false
+	}
+	defer resp.Body.Close()
+	var health struct {
+		SourcesLoaded int `json:"sources_loaded"`
+	}
+	json.NewDecoder(resp.Body).Decode(&health)
+	return health.SourcesLoaded, true
+}
+
+func waitFor(t *testing.T, what string, ok func() bool) {
+	t.Helper()
+	for deadline := time.Now().Add(5 * time.Second); !ok(); time.Sleep(20 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatalf("%s not reached within 5s", what)
+		}
+	}
+}
+
+func TestRunWritesAndLoadsSnapshot(t *testing.T) {
+	var failing atomic.Bool
+	src := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if failing.Load() {
+			http.Error(w, "down", http.StatusInternalServerError)
+			return
+		}
+		w.Write([]byte(`{"prefixes":[{"ipv4Prefix":"192.0.2.0/24"}]}`))
+	}))
+	defer src.Close()
+	newFetchClient = func() *http.Client { return src.Client() }
+
+	dir := t.TempDir()
+	bots := filepath.Join(dir, "bots.yaml")
+	yaml := "bots:\n  - id: testbot\n    name: TestBot\n    ip_sources:\n      - url: " + src.URL + "\n        format: google-prefixes\n"
+	if err := os.WriteFile(bots, []byte(yaml), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	snap := filepath.Join(dir, "s.jsonl")
+
+	addr, stop := startRun(t, "-bots", bots, "-snapshot", snap)
+	waitFor(t, "sources_loaded == 1", func() bool { n, _ := sourcesLoaded(addr); return n == 1 })
+	waitFor(t, "snapshot written", func() bool { _, err := os.Stat(snap); return err == nil })
+	stop()
+
+	failing.Store(true)
+	addr, stop = startRun(t, "-bots", bots, "-snapshot", snap)
+	defer stop()
+	var loaded int
+	waitFor(t, "first /healthz", func() bool { n, ok := sourcesLoaded(addr); loaded = n; return ok })
+	if loaded != 1 {
+		t.Errorf("first /healthz after restart: sources_loaded = %d, want 1 from the snapshot", loaded)
+	}
+	resp, err := http.Get("http://" + addr + "/readyz")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("/readyz after restart = %d, want 200", resp.StatusCode)
 	}
 }
 

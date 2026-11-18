@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -165,4 +166,34 @@ func sourceURLs(cat *catalog.Catalog) []string {
 		}
 	}
 	return out
+}
+
+// Keep loads path into st, logging what it dropped, and returns the function
+// to call after every refresh cycle: it writes the snapshot when the store
+// changed since the last load or write. Write errors are logged, never
+// fatal. With an empty path, snapshots are off and both steps do nothing.
+func Keep(path string, cat *catalog.Catalog, st *store.Store, logger *slog.Logger) (afterRefresh func()) {
+	if path == "" {
+		return func() {}
+	}
+	loaded, warnings, err := Load(path, cat, st, time.Now())
+	for _, warning := range warnings {
+		logger.Warn("snapshot line dropped", "reason", warning)
+	}
+	if err != nil {
+		logger.Warn("snapshot load failed", "error", err.Error())
+	}
+	logger.Info("snapshot loaded", "loaded", loaded, "dropped", len(warnings))
+	written := st.Version()
+	return func() {
+		version := st.Version()
+		if version == written {
+			return
+		}
+		if err := Write(path, cat, st); err != nil {
+			logger.Warn("snapshot write failed", "error", err.Error())
+			return
+		}
+		written = version
+	}
 }

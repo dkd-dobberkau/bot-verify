@@ -2,6 +2,7 @@ package snapshot
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -168,5 +169,45 @@ func TestLoadMissingFile(t *testing.T) {
 	loaded, warnings, err := Load(filepath.Join(t.TempDir(), "none.jsonl"), testCatalog(), store.New(), now)
 	if loaded != 0 || warnings != nil || err != nil {
 		t.Errorf("Load = %d, %v, %v; want 0, nil, nil", loaded, warnings, err)
+	}
+}
+
+func TestKeepWritesOnlyWhenStoreChanged(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "s.jsonl")
+	src := store.New() // Keep checks the age against the wall clock
+	src.Set(urlA, store.Snapshot{Prefixes: prefixes("66.249.64.0/27"), FetchedAt: time.Now().Add(-time.Hour)})
+	src.Set(urlB, store.Snapshot{Prefixes: prefixes("192.0.2.0/24"), FetchedAt: time.Now().Add(-time.Hour)})
+	if err := Write(path, testCatalog(), src); err != nil {
+		t.Fatal(err)
+	}
+	st := store.New()
+	logs := &strings.Builder{}
+	afterRefresh := Keep(path, testCatalog(), st, slog.New(slog.NewTextHandler(logs, nil)))
+	if _, ok := st.Get(urlA); !ok {
+		t.Fatal("Keep did not load the snapshot")
+	}
+	if !strings.Contains(logs.String(), "loaded=2") {
+		t.Errorf("logs = %q, want a line with loaded=2", logs.String())
+	}
+
+	os.Remove(path)
+	afterRefresh()
+	if _, err := os.Stat(path); err == nil {
+		t.Error("written although the store did not change since loading")
+	}
+	st.Set(urlB, store.Snapshot{Prefixes: prefixes("203.0.113.0/24"), FetchedAt: time.Now()})
+	afterRefresh()
+	if _, err := os.Stat(path); err != nil {
+		t.Errorf("not written after the store changed: %v", err)
+	}
+}
+
+func TestKeepWithoutPathIsOff(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	st := filledStore()
+	Keep("", testCatalog(), st, slog.New(slog.DiscardHandler))()
+	if entries, _ := os.ReadDir(dir); len(entries) != 0 {
+		t.Errorf("files written with snapshots off: %v", entries)
 	}
 }
