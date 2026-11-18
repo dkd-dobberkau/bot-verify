@@ -2,6 +2,7 @@ package sources
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,6 +13,23 @@ const MaxBodyBytes = 5 << 20
 
 // UserAgent identifies bot-verify to operators; main sets the version.
 var UserAgent = "bot-verify/dev (+https://github.com/dkd-dobberkau/bot-verify)"
+
+// maxRedirects matches net/http's default limit.
+const maxRedirects = 10
+
+// RejectDowngrade is an http.Client CheckRedirect policy: a fetch that started
+// over https may only be redirected to https. bots.yaml accepts only https
+// sources, and that rule must hold for every hop, or plaintext content could
+// become stored prefixes and confirm spoofed IPs.
+func RejectDowngrade(req *http.Request, via []*http.Request) error {
+	if len(via) >= maxRedirects {
+		return fmt.Errorf("stopped after %d redirects", maxRedirects)
+	}
+	if via[0].URL.Scheme == "https" && req.URL.Scheme != "https" {
+		return fmt.Errorf("refusing redirect from https to %s://%s", req.URL.Scheme, req.URL.Host)
+	}
+	return nil
+}
 
 // FetchState is what a source told us last time, for conditional requests.
 type FetchState struct {
@@ -44,6 +62,10 @@ func Fetch(ctx context.Context, client *http.Client, url string, prev FetchState
 		return FetchResult{}, err
 	}
 	defer resp.Body.Close()
+	// Also enforced here for clients built without RejectDowngrade.
+	if req.URL.Scheme == "https" && resp.Request.URL.Scheme != "https" {
+		return FetchResult{}, errors.New("https source was redirected to " + resp.Request.URL.Scheme)
+	}
 	switch resp.StatusCode {
 	case http.StatusNotModified:
 		return FetchResult{NotModified: true, State: prev}, nil

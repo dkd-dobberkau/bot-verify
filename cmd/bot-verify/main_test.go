@@ -84,3 +84,26 @@ func TestProbe(t *testing.T) {
 		t.Error("probe of stopped server returned nil")
 	}
 }
+
+// productionFetchClient is captured before any test replaces newFetchClient.
+var productionFetchClient = newFetchClient
+
+func TestFetchClientRefusesHTTPSDowngrade(t *testing.T) {
+	var plainHits int
+	plain := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { plainHits++ }))
+	defer plain.Close()
+	source := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, plain.URL, http.StatusFound)
+	}))
+	defer source.Close()
+	client := productionFetchClient()
+	client.Transport = source.Client().Transport // trust the test CA, keep the production policy
+	resp, err := client.Get(source.URL)
+	if err == nil {
+		resp.Body.Close()
+		t.Error("production fetch client followed an https to http redirect")
+	}
+	if plainHits != 0 {
+		t.Errorf("plain-http origin was requested %d times, want 0", plainHits)
+	}
+}
