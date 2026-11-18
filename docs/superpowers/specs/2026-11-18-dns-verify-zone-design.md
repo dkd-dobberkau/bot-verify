@@ -228,3 +228,14 @@ This replaces the "lists are kept for good" limitation in SECURITY.md.
   call from review).
 - Public delegation and stub zones with optional in-zone glue (builder's
   call from review).
+
+## Changes after security audit run 2 (2026-11-19)
+
+- Rate limiting is keyed per IPv4 /24 instead of per IPv4 address, as in
+  authoritative RRL, so a spoofer cannot reflect one burst per address at a
+  whole /24 (owner). IPv6 stays per /56. A full table evicts idle entries
+  instead of being wiped.
+- TCP, the fallback for rate-limited resolvers, has a connection cap in
+  total and per source, set by flags (`-tcp-max-conns` 512,
+  `-tcp-max-per-source` 16), plus a 2 s idle timeout and 32 queries per
+  connection (owner).

@@ -35,9 +35,10 @@ service for others.
 - Resolvers cache answers, positive and negative, for up to 300 s. A list
   change reaches clients at most 300 s after the server has it.
 - The server answers only its zone (REFUSED otherwise), never recurses and
-  never sends queries of its own. UDP floods from one source (IPv4 address or
-  IPv6 /56) get empty truncated replies instead of answers, which bounds
-  reflection; honest resolvers retry over TCP.
+  never sends queries of its own. UDP floods aimed at one network (IPv4 /24
+  or IPv6 /56) get empty truncated replies instead of answers, which bounds
+  reflection; honest resolvers retry over TCP. TCP connections are capped in
+  total and per source, so one client cannot hold that fallback.
 - Logs hold aggregate answer counts only, never query names (they contain
   visitor IPs) or client addresses.
 

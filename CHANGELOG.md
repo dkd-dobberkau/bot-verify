@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- DNS hardening (security audit run 2):
+  - the UDP rate limit is keyed per IPv4 /24 (was per address) and IPv6 /56,
+    and a full limiter table evicts idle entries instead of being wiped;
+  - TCP connections are capped (`-tcp-max-conns` 512,
+    `-tcp-max-per-source` 16), with a 2 s idle timeout and 32 queries per
+    connection;
+  - replies are always compressed; names that are outside the zone in wire
+    form (escaped dots) get REFUSED; opcodes other than QUERY get NOTIMP;
+  - an in-zone `-ns` name below a name the zone answers NXDOMAIN for is
+    refused at start.
+- The list fetcher also refuses benchmarking, reserved, documentation and
+  local-use NAT64 ranges, and NAT64/6to4 addresses that translate to a
+  non-public IPv4 address.
+
 - Fix (security audit run 2): a snapshot line's ETag or Last-Modified made the
   origin's 304 renew the file's prefixes on every refresh, so anyone able to
   write the snapshot could keep chosen ranges `confirmed` (or real crawlers

@@ -188,12 +188,18 @@ oai-searchbot, claudebot, claude-user, shapbot, perplexitybot, duckduckbot.
 | `-hostmaster` | required | SOA mailbox as a domain name |
 | `-refresh` | `6h` | Interval between list refreshes |
 | `-snapshot` | | JSONL snapshot, as for the API |
+| `-tcp-max-conns` | `512` | Concurrent TCP connections in total |
+| `-tcp-max-per-source` | `16` | Concurrent TCP connections per IPv4 address or IPv6 /56 |
 | `-probe` | | Query the server at `-listen` and exit (container health check); with `-zone`, it requires the zone SOA |
 | `-version` | | Print the version |
 
-Per source (IPv4 address or IPv6 /56), UDP queries above 200/s (burst 400)
-get an empty reply with the TC bit, so resolvers retry over TCP, which is not
-limited. Logs hold aggregate answer counts only, never names or clients.
+Per source network (IPv4 /24 or IPv6 /56, as in response rate limiting of
+other authoritative servers), UDP queries above 200/s (burst 400) get an
+empty reply with the TC bit, so resolvers retry over TCP. TCP has no query
+rate limit but a connection cap (`-tcp-max-conns`, `-tcp-max-per-source`), a
+2 s idle timeout and at most 32 queries per connection. Replies are always
+compressed, and opcodes other than QUERY get NOTIMP. Logs hold aggregate
+answer counts only, never names or clients.
 
 Docker (nonroot cannot bind port 53, so map it):
 

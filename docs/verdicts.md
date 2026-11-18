@@ -89,7 +89,9 @@ of the same IP and bot share one lookup and one slot.
 `bot-verify-dns` answers `<reversed address>.<bot-id>.<zone>` from the IP lists
 only; it never checks reverse DNS. In this order:
 
-1. **Not in the zone, or not class IN**: REFUSED.
+1. **Not in the zone, or not class IN**: REFUSED. The zone check compares wire
+   labels, so an escaped dot (`foo\.verify.example`) never counts as a label
+   boundary. Opcodes other than QUERY get NOTIMP.
 2. **An in-zone NS name**: its glue A/AAAA records.
 3. **The apex, `<bot-id>.<zone>`, or a partial address path** (1–3 octets,
    1–31 nibbles): NODATA. NXDOMAIN there would let resolvers that follow
