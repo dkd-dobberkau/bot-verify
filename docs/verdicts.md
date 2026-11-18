@@ -13,14 +13,19 @@ one that applies gives the answer:
      method `rdns`, reason `dns lookup failed`;
    - a match: `confirmed`, method `rdns`, with the confirming `hostname`;
    - no match, with every IP list loaded: `refuted`, method `rdns`;
-   - no match while a list is still missing: go on to step 5.
+   - no match while a list is still missing or stale: go on to step 5.
 5. **An IP list has not loaded yet**: `not_checkable`, method `ip_list`, reason
-   `source data not loaded`.
+   `source data not loaded`. If every list is loaded but one is stale, the
+   reason is `source data stale`.
 6. **Otherwise**: `refuted`, method `ip_list`.
 
 So `refuted` needs a definite answer from everything the operator offers.
 Anything uncertain gives `not_checkable`, because a real crawler wrongly
 refuted is the second-worst outcome, after a spoofer wrongly confirmed.
+
+"Loaded" always means loaded and fresh: a list whose last successful fetch (or
+304) is older than 7 days (`store.MaxAge`) counts as not loaded. It never
+confirms and never refutes.
 
 IPv4-mapped IPv6 addresses (`::ffff:66.249.66.1`) are treated as the IPv4 address.
 

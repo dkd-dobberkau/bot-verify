@@ -141,6 +141,27 @@ func TestVerifyIPListBeforeRDNS(t *testing.T) {
 	}
 }
 
+func staleStore() *store.Store {
+	st := store.New()
+	st.Set(listURL, store.Snapshot{
+		Prefixes:  []netip.Prefix{netip.MustParsePrefix("66.249.64.0/27")},
+		FetchedAt: now.Add(-store.MaxAge - time.Second),
+	})
+	return st
+}
+
+func TestVerify_StaleListNotCheckable(t *testing.T) {
+	res := verify(t, staleStore(), &fakeRDNS{}, "66.249.64.5", "listbot")
+	expect(t, res, "not_checkable", "ip_list", "source data stale")
+}
+
+func TestVerify_StaleListNeverRefutes(t *testing.T) {
+	res := verify(t, staleStore(), &fakeRDNS{}, "192.0.2.1", "listbot")
+	expect(t, res, "not_checkable", "ip_list", "source data stale")
+	res = verify(t, staleStore(), &fakeRDNS{outcome: rdns.NoMatch}, "192.0.2.1", "bothbot")
+	expect(t, res, "not_checkable", "ip_list", "source data stale")
+}
+
 func TestVerify_RDNSNoMatchWhileListNotLoaded(t *testing.T) {
 	res := verify(t, store.New(), &fakeRDNS{outcome: rdns.NoMatch}, "2001:db8::1", "bothbot")
 	expect(t, res, "not_checkable", "ip_list", "source data not loaded")

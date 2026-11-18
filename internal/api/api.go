@@ -141,16 +141,18 @@ func (h *handler) buildDataset() []byte {
 	return encodeJSON(map[string]any{"generated_at": time.Now().UTC(), "bots": bots})
 }
 
-// sourceCounts returns how many distinct source URLs are loaded, of how many.
+// sourceCounts returns how many distinct source URLs are loaded and fresh,
+// of how many.
 func (h *handler) sourceCounts() (loaded, total int) {
 	seen := make(map[string]bool)
+	now := time.Now()
 	for _, bot := range h.catalog.Bots {
 		for _, src := range bot.IPSources {
 			if seen[src.URL] {
 				continue
 			}
 			seen[src.URL] = true
-			if _, ok := h.store.Get(src.URL); ok {
+			if h.store.State(src.URL, now) == store.Loaded {
 				loaded++
 			}
 		}

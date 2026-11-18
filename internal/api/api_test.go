@@ -231,6 +231,23 @@ func readyz(t *testing.T, st *store.Store, cat *catalog.Catalog) (int, map[strin
 	return resp.StatusCode, body
 }
 
+func TestReadyzCountsOnlyFreshLists(t *testing.T) {
+	cat := catalog.New([]catalog.Bot{{ID: "listbot", Name: "ListBot",
+		IPSources: []catalog.IPSource{{URL: listURL, Format: "google-prefixes"}}}})
+	st := store.New()
+	st.Set(listURL, store.Snapshot{Prefixes: []netip.Prefix{netip.MustParsePrefix("66.249.64.0/27")},
+		FetchedAt: time.Now().Add(-store.MaxAge - time.Minute)})
+	store.Refresh(context.Background(), catalog.New(nil), nil, st, time.Now)
+	if code, body := readyz(t, st, cat); code != http.StatusServiceUnavailable || body["status"] != "no_sources_loaded" || body["sources_loaded"] != 0.0 {
+		t.Errorf("only a stale list: %d %v, want 503 no_sources_loaded with 0 loaded", code, body)
+	}
+	srv := httptest.NewServer(NewHandler(verify.New(cat, st, noRDNS{}, time.Now), cat, st, slog.New(slog.DiscardHandler)))
+	t.Cleanup(srv.Close)
+	if _, body := get(t, srv, "/healthz"); body["sources_loaded"] != 0.0 {
+		t.Errorf("/healthz sources_loaded = %v, want 0 for a stale list", body["sources_loaded"])
+	}
+}
+
 func TestReadyz(t *testing.T) {
 	cat := catalog.New([]catalog.Bot{{ID: "listbot", Name: "ListBot",
 		IPSources: []catalog.IPSource{{URL: listURL, Format: "google-prefixes"}}}})

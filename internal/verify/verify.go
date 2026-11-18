@@ -25,6 +25,7 @@ const (
 
 	ReasonDNSFailed = "dns lookup failed"
 	ReasonNotLoaded = "source data not loaded"
+	ReasonStale     = "source data stale"
 )
 
 // ErrUnknownBot means the bot id is not in the catalog.
@@ -77,17 +78,24 @@ func (v *Verifier) Verify(ctx context.Context, ip netip.Addr, botID string) (Res
 		return verdict(NotCheckable, MethodNone, bot.NotCheckable), nil
 	}
 
-	allLoaded := true
+	// A stale list counts as not loaded; the reason tells the two apart.
+	allLoaded, anyMissing := true, false
 	var oldest time.Time
+	now := v.now()
 	for _, src := range bot.IPSources {
-		matched, loaded, fetchedAt := v.store.Contains(src.URL, ip)
+		state, matched, fetchedAt := v.store.Lookup(src.URL, ip, now)
 		if matched {
 			res.DataAgeSeconds = v.ageSeconds(fetchedAt)
 			return verdict(Confirmed, MethodIPList, ""), nil
 		}
-		if !loaded {
+		switch state {
+		case store.NotLoaded:
+			allLoaded, anyMissing = false, true
+			continue
+		case store.Stale:
 			allLoaded = false
-		} else if oldest.IsZero() || fetchedAt.Before(oldest) {
+		}
+		if oldest.IsZero() || fetchedAt.Before(oldest) {
 			oldest = fetchedAt
 		}
 	}
@@ -110,8 +118,11 @@ func (v *Verifier) Verify(ctx context.Context, ip netip.Addr, botID string) (Res
 			return verdict(Refuted, MethodRDNS, ""), nil
 		}
 	}
-	if !allLoaded {
+	if anyMissing {
 		return verdict(NotCheckable, MethodIPList, ReasonNotLoaded), nil
+	}
+	if !allLoaded {
+		return verdict(NotCheckable, MethodIPList, ReasonStale), nil
 	}
 	return verdict(Refuted, MethodIPList, ""), nil
 }

@@ -53,17 +53,49 @@ func (s *Store) Set(url string, snap Snapshot) {
 	s.version.Add(1)
 }
 
-// Contains reports whether ip is in the source's prefixes, whether the
-// source has been loaded at all, and when it was last fetched.
-func (s *Store) Contains(url string, ip netip.Addr) (matched bool, loaded bool, fetchedAt time.Time) {
+// MaxAge is how long a list stays usable after its last successful fetch or
+// 304. An operator list that cannot be refreshed for longer may have moved
+// addresses to someone else, so it must not confirm or refute anymore.
+const MaxAge = 7 * 24 * time.Hour
+
+// ListState is whether a source's list can be used for a verdict.
+type ListState int
+
+const (
+	NotLoaded ListState = iota
+	Stale
+	Loaded
+)
+
+// State reports whether the source is loaded and fresh at now.
+func (s *Store) State(url string, now time.Time) ListState {
 	snap, ok := s.Get(url)
-	if !ok {
-		return false, false, time.Time{}
+	return stateOf(snap, ok, now)
+}
+
+// Lookup reports the source's state, whether ip is in its prefixes, and when
+// it was last fetched. matched is only ever true for a Loaded list.
+func (s *Store) Lookup(url string, ip netip.Addr, now time.Time) (state ListState, matched bool, fetchedAt time.Time) {
+	snap, ok := s.Get(url)
+	state = stateOf(snap, ok, now)
+	if state != Loaded {
+		return state, false, snap.FetchedAt
 	}
 	for _, prefix := range snap.Prefixes {
 		if prefix.Contains(ip) {
-			return true, true, snap.FetchedAt
+			return state, true, snap.FetchedAt
 		}
 	}
-	return false, true, snap.FetchedAt
+	return state, false, snap.FetchedAt
+}
+
+func stateOf(snap Snapshot, ok bool, now time.Time) ListState {
+	switch {
+	case !ok:
+		return NotLoaded
+	case now.Sub(snap.FetchedAt) > MaxAge:
+		return Stale
+	default:
+		return Loaded
+	}
 }

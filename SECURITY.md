@@ -23,10 +23,11 @@ service for others.
 
 ## Known limitations
 
-- **Old lists are kept for good.** If refreshes keep failing, a list stays in use
-  however old it is (`data_age_seconds` shows the age). Several lists are cloud
-  ranges, so an address the cloud has since handed to another customer could stay
-  `confirmed`. A maximum age is planned.
+- **Lists expire after 7 days.** A list whose last successful fetch (or 304)
+  is older than 7 days counts as not loaded: it neither confirms nor refutes,
+  `/v1/verify` gives `not_checkable` with reason `source data stale`, and it
+  does not count towards `/readyz`. Within those 7 days a cloud address the
+  operator has since handed to another customer can still be `confirmed`.
 - **Broad reverse-DNS suffixes:** `yandex.*`, `baidu.*`, `google.com` and
   `seznam.cz` are only safe while their operators' name servers return no
   customer IPs for names under them. A sample on 2026-11-18 found none (see
