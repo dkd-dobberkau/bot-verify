@@ -27,7 +27,7 @@ const (
 // Resolver is the part of *net.Resolver the checker uses.
 type Resolver interface {
 	LookupAddr(ctx context.Context, addr string) ([]string, error)
-	LookupIPAddr(ctx context.Context, host string) ([]net.IPAddr, error)
+	LookupNetIP(ctx context.Context, network, host string) ([]netip.Addr, error)
 }
 
 // Outcome is a definite DNS answer.
@@ -108,21 +108,28 @@ func (c *Checker) lookup(ctx context.Context, ip netip.Addr, suffixes []string) 
 		}
 		return NoMatch, "", errors.Join(ErrLookup, err)
 	}
+	// Ask only for the queried IP's address family. A merged A+AAAA lookup
+	// reports "not found" from one family even when the other failed
+	// transiently, which would turn a DNS outage into a definite no.
+	network := "ip6"
+	if ip.Is4() {
+		network = "ip4"
+	}
 	var transient error
 	for _, name := range names {
 		host := strings.ToLower(strings.TrimSuffix(name, "."))
 		if !hasSuffix(host, suffixes) {
 			continue
 		}
-		addrs, err := c.resolver.LookupIPAddr(ctx, name)
+		addrs, err := c.resolver.LookupNetIP(ctx, network, name)
 		if err != nil {
 			if !isNotFound(err) {
 				transient = err
 			}
 			continue
 		}
-		for _, addr := range addrs {
-			if forward, ok := netip.AddrFromSlice(addr.IP); ok && forward.Unmap() == ip {
+		for _, forward := range addrs {
+			if forward.Unmap() == ip {
 				return Match, host, nil
 			}
 		}

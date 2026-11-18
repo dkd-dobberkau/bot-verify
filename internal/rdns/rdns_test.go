@@ -33,13 +33,16 @@ func (f *fakeResolver) LookupAddr(_ context.Context, addr string) ([]string, err
 	return names, nil
 }
 
-func (f *fakeResolver) LookupIPAddr(_ context.Context, host string) ([]net.IPAddr, error) {
+func (f *fakeResolver) LookupNetIP(_ context.Context, network, host string) ([]netip.Addr, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.fwdCalls++
-	var out []net.IPAddr
+	var out []netip.Addr
 	for _, ip := range f.forward[host] {
-		out = append(out, net.IPAddr{IP: net.ParseIP(ip)})
+		addr := netip.MustParseAddr(ip)
+		if (network == "ip4") == addr.Is4() {
+			out = append(out, addr)
+		}
 	}
 	if len(out) == 0 {
 		return nil, &net.DNSError{Err: "no such host", Name: host, IsNotFound: true}
