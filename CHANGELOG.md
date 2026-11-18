@@ -1,68 +1,67 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 – 2026-11-19
 
-- DNS hardening (security audit run 2):
-  - the UDP rate limit is keyed per IPv4 /24 (was per address) and IPv6 /56,
-    and a full limiter table evicts idle entries instead of being wiped;
-  - TCP connections are capped (`-tcp-max-conns` 512,
-    `-tcp-max-per-source` 16), with a 2 s idle timeout and 32 queries per
-    connection;
-  - replies are always compressed; names that are outside the zone in wire
-    form (escaped dots) get REFUSED; opcodes other than QUERY get NOTIMP;
-  - an in-zone `-ns` name below a name the zone answers NXDOMAIN for is
-    refused at start.
-- The list fetcher also refuses benchmarking, reserved, documentation and
-  local-use NAT64 ranges, and NAT64/6to4 addresses that translate to a
-  non-public IPv4 address.
+### Added
 
-- Fix (security audit run 2): a snapshot line's ETag or Last-Modified made the
-  origin's 304 renew the file's prefixes on every refresh, so anyone able to
-  write the snapshot could keep chosen ranges `confirmed` (or real crawlers
-  `refuted`) past the 7-day limit and across restarts. Validators are no
-  longer restored; the first refresh after a start fetches every list in full.
-- Fix: snapshot temp-file cleanup no longer removes the temp files of a
-  sibling snapshot whose name starts with the same name (`s.jsonl-dns`).
+- `bot-verify-dns` binary and `dns` image target: an authoritative DNS zone
+  `<reversed address>.<bot-id>.<zone>` answering `A 127.0.0.2` for confirmed,
+  NXDOMAIN for refuted and NODATA for not checkable, with SOA/NS, optional
+  in-zone glue, REFUSED outside the zone, NOTIMP for opcodes other than
+  QUERY, compressed replies, and rate limiting:
+  - UDP per IPv4 /24 and IPv6 /56 (200/s, burst 400), answered with empty
+    truncated replies over the limit; a full limiter table evicts idle
+    entries;
+  - TCP connections capped by `-tcp-max-conns` (512) and
+    `-tcp-max-per-source` (16), with a 2 s idle timeout and 32 queries per
+    connection.
 
-- New `bot-verify-dns` binary and `dns` image target: an authoritative DNS
-  zone `<reversed address>.<bot-id>.<zone>` answering `A 127.0.0.2` for
-  confirmed, NXDOMAIN for refuted and NODATA for not checkable, with SOA/NS,
-  optional in-zone glue, REFUSED outside the zone, and per-source rate
-  limiting by truncation. Adds the dependency `github.com/miekg/dns`.
+  Adds the dependency `github.com/miekg/dns`.
+- `-snapshot <path>` on both binaries keeps the lists in a JSONL file for a
+  warm start. Lines are checked like a fresh fetch, written atomically
+  (temp file, rename, directory sync), and leftover temp files are removed
+  at start. ETag and Last-Modified are not restored, so the first refresh
+  after a start fetches every list in full.
+- `GET /readyz`: ready once one fresh list is loaded (a snapshot gives that
+  before the first fetch); 503 `starting` before the first refresh cycle and
+  503 `no_sources_loaded` after it.
+- Docs: verdict logic (`docs/verdicts.md`), per-bot rationale
+  (`docs/bots.md`), CONTRIBUTING.md, SECURITY.md, and a DNS section in the
+  README with Unbound, ModSecurity and OpenResty examples.
+
+### Changed
+
 - Lists older than 7 days count as not loaded: `/v1/verify` gives
   `not_checkable` with reason `source data stale`, and `/readyz` and
   `/healthz` count fresh lists only.
-- `-snapshot <path>` on both binaries keeps the lists in a JSONL file for a
-  warm start; `/readyz` is ready as soon as one fresh list is loaded.
-  Temp files a crash left behind are removed at start, and the directory
-  is synced after each write so a power loss cannot bring back an older file.
-
-- Fix: a transient A-record failure during forward confirmation was reported
-  as "not found" by the merged A+AAAA lookup and became a cached `refuted` for
-  a real crawler. The forward lookup now asks only for the queried IP's family.
-- Fix: operator lists were accepted after an `https://` source redirected to
-  plain `http://`, so plaintext content could confirm spoofed IPs. Such
-  redirects are now refused.
-- The list fetcher refuses connections to non-public addresses (loopback,
-  private, link-local, CGNAT), so a listed origin cannot point it at internal
-  endpoints by redirect or DNS. Skipped when an outbound proxy is configured.
-- Tests pin how the PTR step classifies resolver failures: only "no PTR
-  exists" can refute; SERVFAIL, lame referral, truncation, malformed records
-  and timeouts give not_checkable.
-- CI: actions/checkout and actions/setup-go pinned by commit SHA.
-- IPv4-mapped prefixes in operator lists are treated as IPv4, so the IPv4
-  breadth limit applies and they match the queried addresses.
-- A source may list at most 50,000 prefixes; /v1/dataset is served from a
-  cache rebuilt only when a list changes.
+- A source may list at most 50,000 prefixes; IPv4-mapped prefixes are
+  treated as IPv4, so the IPv4 breadth limit applies.
+- `/v1/dataset` is served from a cache rebuilt only when a list changes.
 - Request headers are capped at 8 KiB.
-- New /readyz: 503 until the first refresh cycle and while no list is loaded.
 - Concurrent checks of the same IP and bot share one reverse-DNS lookup.
-- Base images pinned by digest; Dependabot keeps digests, action SHAs and Go
-  modules current.
-- Docs: verdict logic (`docs/verdicts.md`), per-bot rationale (`docs/bots.md`),
-  CONTRIBUTING.md, SECURITY.md.
 - Module path `github.com/dkd-dobberkau/bot-verify`; GitHub Actions CI with
-  tests and Trivy scan.
+  vet, race tests and Trivy; actions pinned by commit SHA and base images by
+  digest; Dependabot for digests, actions and Go modules.
+
+### Security
+
+- A transient A-record failure during forward confirmation was reported as
+  "not found" by the merged A+AAAA lookup and became a cached `refuted` for a
+  real crawler. The forward lookup now asks only for the queried IP's family
+  (audit run 1). Tests pin how the PTR step classifies resolver failures.
+- Operator lists were accepted after an `https://` source redirected to
+  plain `http://`. Such redirects are now refused on every hop (audit run 1).
+- The list fetcher refuses connections to non-public addresses: loopback,
+  private, link-local, CGNAT, benchmarking, reserved and documentation
+  ranges, local-use NAT64, and NAT64/6to4 addresses that translate to one of
+  them. Skipped when an outbound proxy is configured.
+- A snapshot line's ETag or Last-Modified made the origin's 304 renew the
+  file's prefixes indefinitely, so anyone able to write the snapshot could
+  keep chosen ranges `confirmed` past the 7-day limit (audit run 2).
+- Snapshot temp-file cleanup no longer removes the temp files of a sibling
+  snapshot with a longer name.
+- An in-zone `-ns` name below a name the zone answers NXDOMAIN for is
+  refused at start.
 
 ## 0.1.0 – 2026-11-18
 

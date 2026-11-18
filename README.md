@@ -13,7 +13,7 @@ WAFs, as a DNS zone (`bot-verify-dns`, see [DNS verify zone](#dns-verify-zone)).
 It uses only what operators publish about their own bots. It stores no visitor
 data and logs no queried IPs.
 
-Status: v0.1.0.
+Status: v0.2.0.
 
 | Document | |
 |---|---|
@@ -70,7 +70,7 @@ go build -o bot-verify ./cmd/bot-verify
 Docker:
 
 ```sh
-docker build --build-arg VERSION=0.1.0 -t bot-verify .
+docker build --build-arg VERSION=0.2.0 -t bot-verify .
 docker run --rm -p 8080:8080 bot-verify
 ```
 
