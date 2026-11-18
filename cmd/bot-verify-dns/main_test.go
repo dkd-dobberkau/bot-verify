@@ -115,6 +115,7 @@ func TestRunRejectsUnusableNS(t *testing.T) {
 	cases := map[string]string{
 		"ns is the zone apex":        "Verify.Example.=192.0.2.53",
 		"in-zone ns without address": "ns2." + zone,
+		"ns below an invalid name":   "ns1.a-b.c." + zone + "=192.0.2.53",
 	}
 	for name, ns := range cases {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -134,11 +135,13 @@ func TestRunRejectsUnusableNS(t *testing.T) {
 func TestRunRejectsBadFlags(t *testing.T) {
 	bots := writeCatalog(t, "https://ops.example/list.json")
 	cases := map[string][]string{
-		"no zone":       {"-bots", bots, "-ns", "ns1." + zone, "-hostmaster", "hostmaster." + zone},
-		"invalid zone":  {"-bots", bots, "-zone", "bad zone", "-ns", "ns1." + zone, "-hostmaster", "hostmaster." + zone},
-		"no ns":         {"-bots", bots, "-zone", zone, "-hostmaster", "hostmaster." + zone},
-		"bad glue":      {"-bots", bots, "-zone", zone, "-ns", "ns1." + zone + "=nope", "-hostmaster", "hostmaster." + zone},
-		"no hostmaster": {"-bots", bots, "-zone", zone, "-ns", "ns1." + zone},
+		"no zone":        {"-bots", bots, "-ns", "ns1." + zone, "-hostmaster", "hostmaster." + zone},
+		"invalid zone":   {"-bots", bots, "-zone", "bad zone", "-ns", "ns1." + zone, "-hostmaster", "hostmaster." + zone},
+		"no ns":          {"-bots", bots, "-zone", zone, "-hostmaster", "hostmaster." + zone},
+		"bad glue":       {"-bots", bots, "-zone", zone, "-ns", "ns1." + zone + "=nope", "-hostmaster", "hostmaster." + zone},
+		"no hostmaster":  {"-bots", bots, "-zone", zone, "-ns", "ns1." + zone},
+		"tcp max conns":  {"-bots", bots, "-zone", zone, "-ns", "ns1." + zone + "=192.0.2.53", "-hostmaster", "hostmaster." + zone, "-tcp-max-conns", "0"},
+		"tcp per source": {"-bots", bots, "-zone", zone, "-ns", "ns1." + zone + "=192.0.2.53", "-hostmaster", "hostmaster." + zone, "-tcp-max-per-source", "0"},
 	}
 	for name, args := range cases {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)

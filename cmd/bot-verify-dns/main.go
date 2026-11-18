@@ -43,6 +43,14 @@ const (
 	countersPeriod = 10 * time.Minute
 )
 
+// A TCP connection is the fallback for rate-limited resolvers. These bound
+// how long one anonymous client can hold it: miekg's defaults are 8 s idle
+// and 128 queries per connection.
+const (
+	tcpIdleTimeout = 2 * time.Second
+	tcpMaxQueries  = 32
+)
+
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -62,6 +70,8 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 	hostmaster := flags.String("hostmaster", "", "SOA mailbox as a domain name, e.g. hostmaster.verify.example (required)")
 	refresh := flags.Duration("refresh", 6*time.Hour, "interval between source refreshes")
 	snapshotPath := flags.String("snapshot", "", "JSONL file to keep the lists in for a warm start (off when empty)")
+	tcpMaxConns := flags.Int("tcp-max-conns", 512, "maximum concurrent TCP connections")
+	tcpMaxPerSource := flags.Int("tcp-max-per-source", 16, "maximum concurrent TCP connections per IPv4 address or IPv6 /56")
 	showVersion := flags.Bool("version", false, "print version and exit")
 	probe := flags.Bool("probe", false, "query the server at -listen and exit (container health check)")
 	if err := flags.Parse(args); err != nil {
@@ -74,7 +84,7 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 	if *probe {
 		return probeServer(*listen, *zone)
 	}
-	if err := checkFlags(*zone, nameServers, *hostmaster, *refresh); err != nil {
+	if err := checkFlags(*zone, nameServers, *hostmaster, *refresh, *tcpMaxConns, *tcpMaxPerSource); err != nil {
 		return err
 	}
 
@@ -106,7 +116,11 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	servers := []*dns.Server{{PacketConn: pc, Handler: handler}, {Listener: ln, Handler: handler}}
+	servers := []*dns.Server{
+		{PacketConn: pc, Handler: handler},
+		{Listener: dnszone.LimitListener(ln, *tcpMaxConns, *tcpMaxPerSource), Handler: handler,
+			IdleTimeout: func() time.Duration { return tcpIdleTimeout }, MaxTCPQueries: tcpMaxQueries},
+	}
 	serveErr := make(chan error, len(servers))
 	for _, srv := range servers {
 		started := make(chan struct{})
@@ -142,7 +156,7 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 	return errors.Join(errs...)
 }
 
-func checkFlags(zone string, nameServers nsFlag, hostmaster string, refresh time.Duration) error {
+func checkFlags(zone string, nameServers nsFlag, hostmaster string, refresh time.Duration, tcpMaxConns, tcpMaxPerSource int) error {
 	if !validDomain(zone) {
 		return fmt.Errorf("-zone %q is not a valid domain name", zone)
 	}
@@ -154,6 +168,9 @@ func checkFlags(zone string, nameServers nsFlag, hostmaster string, refresh time
 	}
 	if refresh <= 0 {
 		return errors.New("-refresh must be positive")
+	}
+	if tcpMaxConns <= 0 || tcpMaxPerSource <= 0 {
+		return errors.New("-tcp-max-conns and -tcp-max-per-source must be positive")
 	}
 	return nil
 }
@@ -180,6 +197,10 @@ func checkNSLabels(zone string, nameServers nsFlag, cat *catalog.Catalog) error 
 			return fmt.Errorf("-ns %s: the zone apex cannot be a name server name", ns.Name)
 		case len(ns.Addrs) == 0:
 			return fmt.Errorf("-ns %s: a name server inside the zone needs its addresses (name=ip[,ip])", ns.Name)
+		case hasInvalidAncestor(ns.Name, zone):
+			// The zone would answer NXDOMAIN for that ancestor, which tells
+			// RFC 8020 resolvers the name server's own name does not exist.
+			return fmt.Errorf("-ns %s: a name between it and the zone cannot exist in the zone", ns.Name)
 		case name.Bot == "":
 			continue
 		}
@@ -188,6 +209,19 @@ func checkNSLabels(zone string, nameServers nsFlag, cat *catalog.Catalog) error 
 		}
 	}
 	return nil
+}
+
+// hasInvalidAncestor reports whether a name between name and zone parses
+// as Invalid, the kind the zone answers with NXDOMAIN.
+func hasInvalidAncestor(name, zone string) bool {
+	labels := strings.Split(strings.TrimSuffix(name, "."), ".")
+	for i := 1; i < len(labels); i++ {
+		ancestor := strings.Join(labels[i:], ".")
+		if parsed := dnszone.ParseName(ancestor, zone); parsed.Kind == dnszone.Invalid {
+			return true
+		}
+	}
+	return false
 }
 
 // nsFlag collects repeated -ns name[=ip[,ip]] values.
