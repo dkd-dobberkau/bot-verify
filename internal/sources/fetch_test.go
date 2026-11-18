@@ -142,6 +142,22 @@ func TestIsPublicAddr(t *testing.T) {
 		"0.0.0.0":              false,
 		"::ffff:127.0.0.1":     false,
 		"224.0.0.1":            false,
+		// Special-purpose ranges that are global unicast to netip but not
+		// the public internet (RFC 6890 registry).
+		"198.18.0.1":         false, // benchmarking
+		"192.0.0.1":          false, // IETF protocol assignments
+		"240.0.0.1":          false, // reserved
+		"0.1.2.3":            false, // "this network"
+		"192.0.2.1":          false, // TEST-NET-1
+		"198.51.100.1":       false, // TEST-NET-2
+		"203.0.113.1":        false, // TEST-NET-3
+		"2001:db8::1":        false, // IPv6 documentation
+		"::a00:1":            false, // IPv4-compatible (deprecated), 10.0.0.1
+		"64:ff9b:1::1":       false, // local-use NAT64
+		"64:ff9b::a00:1":     false, // NAT64 to 10.0.0.1
+		"64:ff9b::4242:4201": true,  // NAT64 to 66.66.66.1
+		"2002:a00:1::1":      false, // 6to4 relay for 10.0.0.1
+		"2002:4242:4201::1":  true,  // 6to4 relay for 66.66.66.1
 	}
 	for addr, want := range cases {
 		if got := isPublicAddr(netip.MustParseAddr(addr)); got != want {
