@@ -8,6 +8,7 @@ You need Go 1.27, the version in `go.mod`, which CI uses too.
 go vet ./...
 go test -race ./...
 go build -o bot-verify ./cmd/bot-verify && ./bot-verify
+go build -o bot-verify-dns ./cmd/bot-verify-dns   # DNS zone, see the README
 ```
 
 `go test` also checks `bots.yaml`, so a broken catalog fails the tests.
@@ -31,8 +32,8 @@ test with a trimmed real response in `internal/sources/testdata/`.
 ## Code
 
 - Write the test first, and watch it fail.
-- Standard library only, apart from the YAML parser. Ask before adding a
-  dependency.
+- Standard library only, apart from the YAML parser and `github.com/miekg/dns`
+  for the DNS zone. Ask before adding a dependency.
 - Never log or store a queried IP.
 - `gofmt` and `go vet` must be clean.
 - How verdicts are reached is described in [docs/verdicts.md](docs/verdicts.md).

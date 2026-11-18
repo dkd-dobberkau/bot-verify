@@ -64,5 +64,10 @@ service for others.
 - **Outbound proxy:** when `HTTPS_PROXY` is set, the fetcher's refusal of
   non-public destinations is off, because it connects to the proxy. The proxy
   must then block internal destinations itself.
+- **The DNS zone checks IP lists only.** It never sends DNS queries, so bots
+  verified only by reverse DNS never get an A record there, and bots with a
+  list and a reverse-DNS rule get NODATA, never NXDOMAIN, for addresses
+  outside their lists. Use `/v1/verify` for those. Only 8 bots can be refuted
+  over DNS today (see the README).
 - **Not covered:** Web Bot Auth signatures, and bots whose operators publish
   nothing.

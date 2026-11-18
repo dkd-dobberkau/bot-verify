@@ -7,7 +7,8 @@ A User-Agent string is free text. Anyone can call themselves GPTBot or
 Googlebot. Most bot operators publish how to check the claim (an IP list or a
 reverse-DNS suffix), but every operator does it differently, in a different
 place and format. bot-verify collects those published methods and answers the
-question for a given IP and bot name.
+question for a given IP and bot name, over an HTTP API or, for webservers and
+WAFs, as a DNS zone (`bot-verify-dns`, see [DNS verify zone](#dns-verify-zone)).
 
 It uses only what operators publish about their own bots. It stores no visitor
 data and logs no queried IPs.
