@@ -249,3 +249,31 @@ func TestReadyz(t *testing.T) {
 		t.Errorf("refreshed and loaded: %d %v, want 200 ready", code, body)
 	}
 }
+
+func TestDatasetRebuiltOnlyWhenStoreChanges(t *testing.T) {
+	cat := catalog.New([]catalog.Bot{{ID: "listbot", Name: "ListBot",
+		IPSources: []catalog.IPSource{{URL: listURL, Format: "google-prefixes"}}}})
+	st := store.New()
+	st.Set(listURL, store.Snapshot{Prefixes: []netip.Prefix{netip.MustParsePrefix("66.249.64.0/27")}, FetchedAt: time.Now()})
+	srv := httptest.NewServer(NewHandler(verify.New(cat, st, noRDNS{}, time.Now), cat, st, slog.New(slog.DiscardHandler)))
+	defer srv.Close()
+	read := func() string {
+		resp, err := http.Get(srv.URL + "/v1/dataset")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		var buf bytes.Buffer
+		buf.ReadFrom(resp.Body)
+		return buf.String()
+	}
+	first := read()
+	time.Sleep(5 * time.Millisecond)
+	if second := read(); second != first {
+		t.Error("dataset was rebuilt although the store did not change")
+	}
+	st.Set(listURL, store.Snapshot{Prefixes: []netip.Prefix{netip.MustParsePrefix("192.0.2.0/24")}, FetchedAt: time.Now()})
+	if third := read(); !strings.Contains(third, `"192.0.2.0/24"`) {
+		t.Errorf("dataset not rebuilt after a store change: %s", third)
+	}
+}

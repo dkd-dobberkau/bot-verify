@@ -2,9 +2,11 @@ package sources
 
 import (
 	"errors"
+	"fmt"
 	"net/netip"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -143,5 +145,16 @@ func TestMappedPrefixesAreTreatedAsIPv4(t *testing.T) {
 				t.Errorf("%s: %s accepted, want rejected as broader than IPv4 /8", format, broad)
 			}
 		}
+	}
+}
+
+func TestRejectsTooManyPrefixes(t *testing.T) {
+	var body strings.Builder
+	for i := 0; i <= MaxPrefixes; i++ {
+		fmt.Fprintf(&body, "10.%d.%d.%d\n", i>>16&255, i>>8&255, i&255)
+	}
+	parse, _ := ParserFor("cidr-lines")
+	if _, err := parse([]byte(body.String())); err == nil {
+		t.Errorf("a list with %d prefixes was accepted, limit is %d", MaxPrefixes+1, MaxPrefixes)
 	}
 }

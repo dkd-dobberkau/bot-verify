@@ -23,7 +23,11 @@ type Store struct {
 	mu        sync.RWMutex
 	snaps     map[string]Snapshot
 	refreshed atomic.Bool
+	version   atomic.Uint64
 }
+
+// Version changes whenever a snapshot is replaced.
+func (s *Store) Version() uint64 { return s.version.Load() }
 
 // Refreshed reports whether at least one refresh cycle has completed.
 func (s *Store) Refreshed() bool { return s.refreshed.Load() }
@@ -46,6 +50,7 @@ func (s *Store) Set(url string, snap Snapshot) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.snaps[url] = snap
+	s.version.Add(1)
 }
 
 // Contains reports whether ip is in the source's prefixes, whether the

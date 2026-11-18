@@ -2,12 +2,14 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
 	"net/netip"
+	"sync"
 	"time"
 
 	"github.com/dkd-dobberkau/bot-verify/internal/catalog"
@@ -23,6 +25,11 @@ type handler struct {
 	verifier *verify.Verifier
 	catalog  *catalog.Catalog
 	store    *store.Store
+
+	// The dataset is rebuilt only when the store changes.
+	datasetMu      sync.Mutex
+	datasetVersion uint64
+	datasetBody    []byte
 }
 
 // NewHandler returns the API. It logs method, path, status and duration per
@@ -103,6 +110,18 @@ type datasetBot struct {
 }
 
 func (h *handler) dataset(w http.ResponseWriter, _ *http.Request) {
+	h.datasetMu.Lock()
+	if version := h.store.Version(); h.datasetBody == nil || version != h.datasetVersion {
+		h.datasetBody, h.datasetVersion = h.buildDataset(), version
+	}
+	body := h.datasetBody
+	h.datasetMu.Unlock()
+	w.Header().Set("Cache-Control", "public, max-age=300")
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Write(body)
+}
+
+func (h *handler) buildDataset() []byte {
 	bots := make([]datasetBot, 0, len(h.catalog.Bots))
 	for _, bot := range h.catalog.Bots {
 		entry := datasetBot{ID: bot.ID, RDNSSuffixes: bot.RDNSSuffixes, NotCheckable: bot.NotCheckable}
@@ -119,7 +138,7 @@ func (h *handler) dataset(w http.ResponseWriter, _ *http.Request) {
 		}
 		bots = append(bots, entry)
 	}
-	writeCachedJSON(w, map[string]any{"generated_at": time.Now().UTC(), "bots": bots})
+	return encodeJSON(map[string]any{"generated_at": time.Now().UTC(), "bots": bots})
 }
 
 // sourceCounts returns how many distinct source URLs are loaded, of how many.
@@ -171,11 +190,17 @@ func writeError(w http.ResponseWriter, status int, code, message string) {
 func writeJSON(w http.ResponseWriter, status int, body any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
-	// Responses are JSON under a default-src 'none' CSP, never HTML, so
-	// URLs keep a readable "&" instead of "&".
-	encoder := json.NewEncoder(w)
+	w.Write(encodeJSON(body))
+}
+
+// encodeJSON does not HTML-escape: responses are JSON under a default-src
+// 'none' CSP, never HTML, so URLs keep a readable "&" instead of a Unicode escape.
+func encodeJSON(body any) []byte {
+	var buf bytes.Buffer
+	encoder := json.NewEncoder(&buf)
 	encoder.SetEscapeHTML(false)
 	encoder.Encode(body)
+	return buf.Bytes()
 }
 
 func securityHeaders(next http.Handler) http.Handler {

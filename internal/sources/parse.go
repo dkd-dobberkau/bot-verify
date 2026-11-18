@@ -20,6 +20,11 @@ const (
 	minIPv6Bits = 16
 )
 
+// MaxPrefixes caps one source's list. The largest real list had 486 entries
+// (2026-11-17); the cap bounds memory and per-request scans without the 5 MiB
+// body limit having to do it.
+const MaxPrefixes = 50_000
+
 // Parser turns a source body into masked prefixes.
 type Parser func(body []byte) ([]netip.Prefix, error)
 
@@ -131,8 +136,11 @@ func checkBreadth(prefix netip.Prefix) error {
 }
 
 func nonEmpty(prefixes []netip.Prefix) ([]netip.Prefix, error) {
-	if len(prefixes) == 0 {
+	switch {
+	case len(prefixes) == 0:
 		return nil, ErrNoPrefixes
+	case len(prefixes) > MaxPrefixes:
+		return nil, fmt.Errorf("source lists %d prefixes, more than %d", len(prefixes), MaxPrefixes)
 	}
 	return prefixes, nil
 }
