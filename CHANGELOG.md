@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- New `bot-verify-dns` binary and `dns` image target: an authoritative DNS
+  zone `<reversed address>.<bot-id>.<zone>` answering `A 127.0.0.2` for
+  confirmed, NXDOMAIN for refuted and NODATA for not checkable, with SOA/NS,
+  optional in-zone glue, REFUSED outside the zone, and per-source rate
+  limiting by truncation. Adds the dependency `github.com/miekg/dns`.
+- Lists older than 7 days count as not loaded: `/v1/verify` gives
+  `not_checkable` with reason `source data stale`, and `/readyz` and
+  `/healthz` count fresh lists only.
+- `-snapshot <path>` on both binaries keeps the lists in a JSONL file for a
+  warm start; `/readyz` is ready as soon as one fresh list is loaded.
+
 - Fix: a transient A-record failure during forward confirmation was reported
   as "not found" by the merged A+AAAA lookup and became a cached `refuted` for
   a real crawler. The forward lookup now asks only for the queried IP's family.

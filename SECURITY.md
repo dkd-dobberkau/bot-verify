@@ -21,6 +21,26 @@ service for others.
 - `not_checkable` is not a negative answer. Do not block on it.
 - No visitor data is stored, and queried IPs are not logged.
 
+## The DNS zone (`bot-verify-dns`)
+
+- `A 127.0.0.2` means `confirmed` by a loaded IP list no older than 7 days.
+  Nothing else ever gets an A record.
+- NXDOMAIN means `refuted`: the bot has IP lists only, all are loaded and
+  fresh, and none holds the address. Names that cannot be an address also get
+  NXDOMAIN.
+- NODATA (NOERROR without an answer) means "cannot tell": a list missing or
+  stale, a bot that reverse DNS might still confirm, or a name above an
+  address. **Never treat NODATA as refuted**, and never treat a lookup
+  failure or timeout as refuted.
+- Resolvers cache answers, positive and negative, for up to 300 s. A list
+  change reaches clients at most 300 s after the server has it.
+- The server answers only its zone (REFUSED otherwise), never recurses and
+  never sends queries of its own. UDP floods from one source (IPv4 address or
+  IPv6 /56) get empty truncated replies instead of answers, which bounds
+  reflection; honest resolvers retry over TCP.
+- Logs hold aggregate answer counts only, never query names (they contain
+  visitor IPs) or client addresses.
+
 ## Known limitations
 
 - **Lists expire after 7 days.** A list whose last successful fetch (or 304)

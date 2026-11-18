@@ -73,6 +73,37 @@ of the same IP and bot share one lookup and one slot.
   - it lists no prefixes;
   - it contains a prefix broader than IPv4 /8 or IPv6 /16 (an operator
     mistake like `0.0.0.0/0` would otherwise confirm every IP).
-- `data_age_seconds` in the answer says how old the list behind it is. There is
-  no maximum age yet: a list stays in use however long refreshes fail (see
-  [SECURITY.md](../SECURITY.md#known-limitations)).
+- `data_age_seconds` in the answer says how old the list behind it is. A list
+  whose last successful fetch (or 304) is more than 7 days old is stale: it
+  counts as not loaded until a fetch succeeds again (`store.MaxAge`).
+- With `-snapshot`, the lists are written to a JSONL file after every refresh
+  cycle that changed them, and read back at start. Every line is checked like
+  a fresh fetch (parse, IPv4-mapped normalisation, breadth limit, prefix cap);
+  lines that are malformed, older than 7 days, dated in the future, or for a
+  URL no longer in `bots.yaml` are dropped.
+
+## DNS zone (`internal/dnszone`)
+
+`bot-verify-dns` answers `<reversed address>.<bot-id>.<zone>` from the IP lists
+only; it never checks reverse DNS. In this order:
+
+1. **Not in the zone, or not class IN**: REFUSED.
+2. **An in-zone NS name**: its glue A/AAAA records.
+3. **The apex, `<bot-id>.<zone>`, or a partial address path** (1–3 octets,
+   1–31 nibbles): NODATA. NXDOMAIN there would let resolvers that follow
+   RFC 8020 treat every address below as non-existent.
+4. **Labels that cannot form an address** (an octet over 255 or with a leading
+   zero, a non-numeric label, too many labels): NXDOMAIN.
+5. **A complete address**:
+   - unknown bot, `not_checkable`, or no IP lists: NODATA;
+   - in any loaded, fresh list: `A 127.0.0.2` (for QTYPE A; other types get
+     NODATA);
+   - any list not loaded or stale: NODATA;
+   - the bot has reverse-DNS suffixes too: NODATA, since reverse DNS might
+     still confirm it;
+   - an IPv4 name of four single digits (`1.0.0.2`): NODATA, because the same
+     name is also a prefix of IPv6 nibble names;
+   - otherwise: NXDOMAIN.
+
+So NXDOMAIN, like `refuted`, needs a definite answer from everything the
+operator offers. NODATA is the DNS form of `not_checkable`.

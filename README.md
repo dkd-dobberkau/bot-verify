@@ -60,6 +60,7 @@ go build -o bot-verify ./cmd/bot-verify
 | `-listen`           | `:8080`     | HTTP listen address |
 | `-bots`             | `bots.yaml` | Bot catalog |
 | `-refresh`          | `6h`        | Interval between refreshes of the operator lists (sent with `If-None-Match`/`If-Modified-Since`; a failed fetch keeps the last good copy) |
+| `-snapshot`         |             | JSONL file the lists are kept in, so a restart is ready at once; off when unset (see below) |
 | `-rdns-ttl`         | `15m`       | Cache lifetime of reverse-DNS answers (failures are not cached) |
 | `-rdns-concurrency` | `64`        | Maximum concurrent reverse-DNS checks |
 | `-probe`            |             | Check `/healthz` at `-listen` and exit; used as container health check |
@@ -74,6 +75,18 @@ docker run --rm -p 8080:8080 bot-verify
 
 A public instance belongs behind a reverse proxy with per-client rate limiting;
 each uncached reverse-DNS check costs up to three DNS queries.
+
+**Maximum list age.** A list whose last successful fetch (or 304) is older
+than 7 days counts as not loaded: it neither confirms nor refutes, and
+`/v1/verify` answers `not_checkable` with reason `source data stale`.
+
+**Snapshot.** With `-snapshot /data/lists.jsonl`, the lists are written to that
+file after every refresh cycle that changed them (temp file and rename, mode
+0600) and read back at start, before the first fetch. Each line is checked
+like a fresh fetch; lines that are malformed, older than 7 days or for a source
+no longer in `bots.yaml` are dropped with a warning. The first refresh still
+runs at once and is then mostly answered with 304. In Docker, mount a volume
+writable by the nonroot user (UID 65532) for the file.
 
 ## API
 
@@ -121,11 +134,110 @@ check uses it.
 
 ### `GET /readyz`
 
-Readiness for load balancers: 503 with `"status":"starting"` until the first
-refresh cycle has finished, and 503 `"no_sources_loaded"` if no IP list could
-be loaded. Until then, bots checked only by IP list get `not_checkable`.
+Readiness for load balancers: 200 `"ready"` as soon as one IP list is loaded
+and fresh, which a snapshot gives before the first fetch. Otherwise 503 with
+`"status":"starting"` until the first refresh cycle has finished, and 503
+`"no_sources_loaded"` after it. Until then, bots checked only by IP list get
+`not_checkable`.
 
 `{"status":"ready","sources_loaded":18,"sources_total":18}`
+
+## DNS verify zone
+
+`bot-verify-dns` is a separate binary that answers the same question over DNS,
+for webservers and WAFs that can do a DNS lookup per request but have no HTTP
+client. It fetches the operator lists itself (same fetch protections as the
+API), never sends DNS queries of its own, and checks IP lists only.
+
+```sh
+go build -o bot-verify-dns ./cmd/bot-verify-dns
+./bot-verify-dns -zone verify.example -ns ns1.verify.example=192.0.2.53 \
+  -hostmaster hostmaster.verify.example -snapshot /data/dns-lists.jsonl
+dig @127.0.0.1 -p 5353 1.216.73.216.claudebot.verify.example A
+```
+
+Query name: `<reversed address>.<bot-id>.<zone>`. IPv4 is reversed by octet
+(`1.66.249.66.gptbot.verify.example` for 66.249.66.1), IPv6 by nibble as in
+`ip6.arpa` (32 labels). IPv4-mapped IPv6 is treated as IPv4.
+
+| Case | Answer |
+|---|---|
+| The address is in a loaded, fresh list of the bot | NOERROR, `A 127.0.0.2` (TTL 300) |
+| The bot has IP lists only, all are loaded and fresh, none holds the address | NXDOMAIN (refuted) |
+| A list is not loaded or older than 7 days | NODATA (not checkable) |
+| The bot also has reverse-DNS rules, `not_checkable`, rDNS rules only, or is unknown | NODATA |
+| A name above an address (`gptbot.<zone>`, `66.gptbot.<zone>`) | NODATA |
+| An IPv4 name of four single digits (`1.0.0.2.gptbot.<zone>`), which is also an IPv6 prefix | never NXDOMAIN, so NODATA when the list misses |
+| A label that cannot be part of an address | NXDOMAIN |
+| Outside the zone, or not class IN | REFUSED |
+
+NXDOMAIN and NODATA carry the zone SOA; its minimum (300 s) is how long
+resolvers cache them. Only 8 bots can be refuted today: gptbot, chatgpt-user,
+oai-searchbot, claudebot, claude-user, shapbot, perplexitybot, duckduckbot.
+
+| Flag | Default | |
+|---|---|---|
+| `-listen` | `:5353` | UDP and TCP address |
+| `-bots` | `bots.yaml` | Bot catalog |
+| `-zone` | required | Zone name |
+| `-ns` | required | Name server, repeatable; `name=ip[,ip]` serves glue for a name inside the zone. Its label next to the zone must not be a bot id |
+| `-hostmaster` | required | SOA mailbox as a domain name |
+| `-refresh` | `6h` | Interval between list refreshes |
+| `-snapshot` | | JSONL snapshot, as for the API |
+| `-probe` | | Query the server at `-listen` and exit (container health check); with `-zone`, it requires the zone SOA |
+| `-version` | | Print the version |
+
+Per source (IPv4 address or IPv6 /56), UDP queries above 200/s (burst 400)
+get an empty reply with the TC bit, so resolvers retry over TCP, which is not
+limited. Logs hold aggregate answer counts only, never names or clients.
+
+Docker (nonroot cannot bind port 53, so map it):
+
+```sh
+docker build --target dns -t bot-verify-dns .
+docker run --rm -p 53:5353/udp -p 53:5353/tcp bot-verify-dns \
+  -zone verify.example -ns ns1.verify.example=192.0.2.53 -hostmaster hostmaster.verify.example
+```
+
+The zone can be delegated publicly from its parent, or served only to your
+own resolver. Unbound as a stub zone:
+
+```
+server:
+    do-not-query-localhost: no
+    domain-insecure: "verify.example"
+stub-zone:
+    name: "verify.example"
+    stub-addr: 127.0.0.1@5353
+```
+
+**Allow confirmed bots** with any DNSBL client, which sees only "resolves" or
+"does not resolve". ModSecurity, skipping the challenge for a real GPTBot:
+
+```
+SecRule REQUEST_HEADERS:User-Agent "@contains GPTBot" "id:1000100,phase:1,pass,nolog,chain"
+    SecRule REMOTE_ADDR "@rbl gptbot.verify.example" "setvar:tx.verified_bot=1"
+```
+
+Then let the challenge rule skip requests with `tx.verified_bot=1`.
+
+**Block spoofers** only with a client that sees the RCODE, and only on
+NXDOMAIN. NODATA and lookup failures mean "cannot tell": pass or challenge.
+OpenResty, with a caching resolver (such as the Unbound above) at 127.0.0.1:
+
+```lua
+-- access_by_lua_block
+local resolver = require "resty.dns.resolver"
+local ua = ngx.var.http_user_agent or ""
+local a, b, c, d = ngx.var.remote_addr:match("^(%d+)%.(%d+)%.(%d+)%.(%d+)$")
+if a and ua:find("GPTBot", 1, true) then
+    local r = resolver:new{ nameservers = { "127.0.0.1" }, timeout = 500 }
+    local answers = r and r:query(d .. "." .. c .. "." .. b .. "." .. a .. ".gptbot.verify.example", { qtype = r.TYPE_A })
+    if answers and answers.errcode == 3 then -- NXDOMAIN: the list refutes it
+        return ngx.exit(ngx.HTTP_FORBIDDEN)
+    end
+end
+```
 
 ## Adding a bot
 
