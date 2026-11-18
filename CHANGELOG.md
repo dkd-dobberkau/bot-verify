@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Fix: a transient A-record failure during forward confirmation was reported
+  as "not found" by the merged A+AAAA lookup and became a cached `refuted` for
+  a real crawler. The forward lookup now asks only for the queried IP's family.
+- Fix: operator lists were accepted after an `https://` source redirected to
+  plain `http://`, so plaintext content could confirm spoofed IPs. Such
+  redirects are now refused.
 - Docs: verdict logic (`docs/verdicts.md`), per-bot rationale (`docs/bots.md`),
   CONTRIBUTING.md, SECURITY.md.
 - Module path `github.com/dkd-dobberkau/bot-verify`; GitHub Actions CI with

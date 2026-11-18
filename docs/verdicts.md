@@ -31,8 +31,10 @@ Forward-confirmed, as the operators describe it:
 1. PTR lookup of the IP.
 2. For each name: lowercased, trailing dot removed, it must equal a suffix or
    end in `.` + suffix. `evilgooglebot.com` does not match `googlebot.com`.
-3. Forward lookup (A/AAAA) of that name; the original IP must be among the
-   results.
+3. Forward lookup of that name, for the queried IP's family only (A for IPv4,
+   AAAA for IPv6); the original IP must be among the results. Asking for one
+   family keeps a failure of that family from hiding behind a "not found" of
+   the other, which would otherwise turn a DNS outage into `refuted`.
 
 Without step 3, anyone controlling the reverse zone of their own IP range could
 claim any hostname.
@@ -53,6 +55,8 @@ Failures are never cached, so the next request tries again.
   `If-Modified-Since`. Each distinct URL is fetched once, even when several
   bots share it.
 - A fetch is rejected, and the **last good copy stays active**, when:
+  - an `https://` source is redirected to anything but `https://` (the
+    redirect is refused before the plain request is sent);
   - the status is not 200 or 304;
   - the body is larger than 5 MiB;
   - the body does not parse;
