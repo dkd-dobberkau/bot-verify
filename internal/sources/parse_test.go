@@ -122,3 +122,26 @@ func TestRejectsOverlyBroadPrefixes(t *testing.T) {
 		t.Errorf("/8 and /16 must be accepted, got %v", got)
 	}
 }
+
+// IPv4-mapped IPv6 prefixes are normalised to IPv4, so the IPv4 breadth limit
+// applies and they match the unmapped addresses Verify queries.
+func TestMappedPrefixesAreTreatedAsIPv4(t *testing.T) {
+	for _, format := range []string{"google-prefixes", "cidr-lines"} {
+		body := func(prefix string) []byte {
+			if format == "cidr-lines" {
+				return []byte(prefix + "\n")
+			}
+			return []byte(`{"prefixes":[{"ipv6Prefix":"` + prefix + `"}]}`)
+		}
+		got := mustParse(t, format, body("::ffff:198.51.100.0/120"))
+		if len(got) != 1 || got[0] != netip.MustParsePrefix("198.51.100.0/24") {
+			t.Errorf("%s: got %v, want 198.51.100.0/24", format, got)
+		}
+		parse, _ := ParserFor(format)
+		for _, broad := range []string{"::ffff:0.0.0.0/97", "::ffff:0.0.0.0/96", "::ffff:0.0.0.0/90"} {
+			if _, err := parse(body(broad)); err == nil {
+				t.Errorf("%s: %s accepted, want rejected as broader than IPv4 /8", format, broad)
+			}
+		}
+	}
+}

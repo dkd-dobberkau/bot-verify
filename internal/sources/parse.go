@@ -63,10 +63,11 @@ func parseGooglePrefixes(body []byte) ([]netip.Prefix, error) {
 		if err != nil {
 			return nil, fmt.Errorf("google-prefixes: entry %d: %w", i, err)
 		}
-		if err := checkBreadth(prefix); err != nil {
+		prefix, err = acceptPrefix(prefix)
+		if err != nil {
 			return nil, fmt.Errorf("google-prefixes: entry %d: %w", i, err)
 		}
-		out = append(out, prefix.Masked())
+		out = append(out, prefix)
 	}
 	return nonEmpty(out)
 }
@@ -82,7 +83,8 @@ func parseCIDRLines(body []byte) ([]netip.Prefix, error) {
 		if err != nil {
 			return nil, fmt.Errorf("cidr-lines: line %d: %w", n+1, err)
 		}
-		if err := checkBreadth(prefix); err != nil {
+		prefix, err = acceptPrefix(prefix)
+		if err != nil {
 			return nil, fmt.Errorf("cidr-lines: line %d: %w", n+1, err)
 		}
 		out = append(out, prefix)
@@ -92,14 +94,29 @@ func parseCIDRLines(body []byte) ([]netip.Prefix, error) {
 
 func parseIPOrPrefix(text string) (netip.Prefix, error) {
 	if strings.Contains(text, "/") {
-		prefix, err := netip.ParsePrefix(text)
-		return prefix.Masked(), err
+		return netip.ParsePrefix(text)
 	}
 	addr, err := netip.ParseAddr(text)
 	if err != nil {
 		return netip.Prefix{}, err
 	}
 	return addr.Unmap().Prefix(addr.Unmap().BitLen())
+}
+
+// acceptPrefix normalises an IPv4-mapped IPv6 prefix to IPv4, so the IPv4
+// breadth limit applies to it and it matches the unmapped addresses Verify
+// queries, then checks breadth and masks the host bits.
+func acceptPrefix(prefix netip.Prefix) (netip.Prefix, error) {
+	if prefix.Addr().Is4In6() {
+		if prefix.Bits() < 96 {
+			return netip.Prefix{}, fmt.Errorf("prefix %s reaches beyond the IPv4-mapped range", prefix)
+		}
+		prefix = netip.PrefixFrom(prefix.Addr().Unmap(), prefix.Bits()-96)
+	}
+	if err := checkBreadth(prefix); err != nil {
+		return netip.Prefix{}, err
+	}
+	return prefix.Masked(), nil
 }
 
 func checkBreadth(prefix netip.Prefix) error {
