@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -105,5 +106,25 @@ func TestFetchClientRefusesHTTPSDowngrade(t *testing.T) {
 	}
 	if plainHits != 0 {
 		t.Errorf("plain-http origin was requested %d times, want 0", plainHits)
+	}
+}
+
+func TestServerRejectsOversizedHeaders(t *testing.T) {
+	server := newServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	go server.Serve(listener)
+	defer server.Close()
+	req, _ := http.NewRequest("GET", "http://"+listener.Addr().String()+"/healthz", nil)
+	req.Header.Set("X-Filler", strings.Repeat("a", 32<<10))
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusRequestHeaderFieldsTooLarge {
+		t.Errorf("status %d for a 32 KiB header, want 431", resp.StatusCode)
 	}
 }

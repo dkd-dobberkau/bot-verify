@@ -81,13 +81,7 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 
 	checker := rdns.NewChecker(net.DefaultResolver, *rdnsTTL, *rdnsConcurrency, time.Now)
 	verifier := verify.New(cat, st, checker, time.Now)
-	server := &http.Server{
-		Handler:           api.NewHandler(verifier, cat, st, logger),
-		ReadHeaderTimeout: 5 * time.Second,
-		ReadTimeout:       10 * time.Second,
-		WriteTimeout:      30 * time.Second,
-		IdleTimeout:       60 * time.Second,
-	}
+	server := newServer(api.NewHandler(verifier, cat, st, logger))
 	listener, err := net.Listen("tcp", *listen)
 	if err != nil {
 		return err
@@ -104,6 +98,19 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	return server.Shutdown(shutdownCtx)
+}
+
+// newServer sets the limits for untrusted clients. A verify request is one
+// short GET line; 8 KiB of headers leaves room for proxies' additions.
+func newServer(handler http.Handler) *http.Server {
+	return &http.Server{
+		Handler:           handler,
+		MaxHeaderBytes:    8 << 10,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
 }
 
 // probeHealth GETs /healthz on the listen address; an empty host means localhost.
