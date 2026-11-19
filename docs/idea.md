@@ -52,8 +52,8 @@ meaning "confirmed". Also possible: an HTTP API, or a downloadable dataset.
 1. Interface: a normalised dataset first (per bot: IP ranges, reverse-DNS
    suffixes, source URL), with a small HTTP API on top. A DNS zone can be
    generated from the same dataset later. (Built on 2026-11-18 as the separate
-   binary `bot-verify-dns`; see
-   [the design](superpowers/specs/2026-11-18-dns-verify-zone-design.md).)
+   binary `bot-verify-dns`; see the
+   [README](../README.md#dns-verify-zone).)
 2. Operation: both. Open-source software anyone can run themselves, plus one
    public instance.
 3. Scope: all bots in the catalog, with three answers: `confirmed`, `refuted`,

@@ -26,7 +26,7 @@ func TestHomePage(t *testing.T) {
 	if resp.StatusCode != http.StatusOK || !strings.HasPrefix(resp.Header.Get("Content-Type"), "text/html") {
 		t.Fatalf("status %d, Content-Type %q", resp.StatusCode, resp.Header.Get("Content-Type"))
 	}
-	for _, want := range []string{"/v1/verify?ip=", "goodbot-badbot.com/impressum", "goodbot-badbot.com/datenschutz"} {
+	for _, want := range []string{"/v1/verify?ip=", "goodbot-badbot.com/impressum", "goodbot-badbot.com/datenschutz", "github.com/dkd-dobberkau/bot-verify"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("home page lacks %q", want)
 		}

@@ -2,3 +2,4 @@
 /bot-verify-dns
 .playwright-mcp/
 .deploy.env
+docs/superpowers/
