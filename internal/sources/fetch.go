@@ -68,6 +68,11 @@ func Fetch(ctx context.Context, client *http.Client, url string, prev FetchState
 	}
 	switch resp.StatusCode {
 	case http.StatusNotModified:
+		// Only an answer to the validator sent; otherwise it would renew
+		// prefixes this request never checked, such as restored ones.
+		if prev.ETag == "" && prev.LastModified == "" {
+			return FetchResult{}, errors.New("status 304 to a request without validators")
+		}
 		return FetchResult{NotModified: true, State: prev}, nil
 	case http.StatusOK:
 	default:

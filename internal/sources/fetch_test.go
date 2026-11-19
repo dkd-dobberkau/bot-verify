@@ -53,6 +53,19 @@ func TestFetchReturnsBodyAndState(t *testing.T) {
 	}
 }
 
+// A 304 answers a conditional request only (RFC 9110). Taken after an
+// unconditional one, it would renew whatever the store holds, such as
+// prefixes restored from a snapshot, without the origin having seen them.
+func TestFetchRejectsNotModifiedWithoutValidator(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotModified)
+	}))
+	defer srv.Close()
+	if res, err := Fetch(context.Background(), srv.Client(), srv.URL, FetchState{}); err == nil {
+		t.Errorf("304 to an unconditional request accepted: %+v", res)
+	}
+}
+
 func TestFetchRejectsNon200(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
