@@ -72,7 +72,9 @@ of the same IP and bot share one lookup and one slot.
   - the body does not parse;
   - it lists no prefixes;
   - it contains a prefix broader than IPv4 /8 or IPv6 /16 (an operator
-    mistake like `0.0.0.0/0` would otherwise confirm every IP).
+    mistake like `0.0.0.0/0` would otherwise confirm every IP), or a NAT64
+    (`64:ff9b::/96`) or 6to4 (`2002::/16`) prefix that leaves more than an
+    IPv4 /8 open in its embedded IPv4 bits.
 - `data_age_seconds` in the answer says how old the list behind it is. A list
   whose last successful fetch (or 304) is more than 7 days old is stale: it
   counts as not loaded until a fetch succeeds again (`store.MaxAge`).

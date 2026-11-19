@@ -170,6 +170,18 @@ func TestValidatePrefixes(t *testing.T) {
 	if _, err := ValidatePrefixes(nil); !errors.Is(err, ErrNoPrefixes) {
 		t.Errorf("empty: err = %v, want ErrNoPrefixes", err)
 	}
+	// Translation prefixes carry an IPv4 address in fixed bits, so the IPv4
+	// breadth limit applies to those bits.
+	for _, broad := range []string{"2002::/16", "2002::/23", "64:ff9b::/96", "64:ff9b::/103", "64:ff9b::/32"} {
+		if _, err := ValidatePrefixes(prefixes(broad)); err == nil {
+			t.Errorf("%s accepted, but covers more than an IPv4 /8 in translated form", broad)
+		}
+	}
+	for _, narrow := range []string{"2002:c633:6400::/40", "64:ff9b::c633:6400/120", "2001:db8::/32"} {
+		if _, err := ValidatePrefixes(prefixes(narrow)); err != nil {
+			t.Errorf("%s refused: %v", narrow, err)
+		}
+	}
 	many := make([]netip.Prefix, MaxPrefixes+1)
 	for i := range many {
 		many[i] = netip.PrefixFrom(netip.AddrFrom4([4]byte{10, byte(i >> 16), byte(i >> 8), byte(i)}), 32)

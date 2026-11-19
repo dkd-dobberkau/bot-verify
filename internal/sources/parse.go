@@ -140,6 +140,17 @@ func checkBreadth(prefix netip.Prefix) error {
 	if prefix.Bits() < minBits {
 		return fmt.Errorf("prefix %s is broader than /%d", prefix, minBits)
 	}
+	// A NAT64 or 6to4 address carries an IPv4 address right after the
+	// translation prefix (see embeddedIPv4), so a prefix overlapping one is
+	// as broad as the IPv4 bits it leaves open.
+	for _, translation := range []netip.Prefix{nat64, sixToFour} {
+		if !prefix.Overlaps(translation) {
+			continue
+		}
+		if ipv4Bits := max(prefix.Bits(), translation.Bits()) - translation.Bits(); ipv4Bits < minIPv4Bits {
+			return fmt.Errorf("prefix %s covers more than an IPv4 /%d through %s", prefix, minIPv4Bits, translation)
+		}
+	}
 	return nil
 }
 
