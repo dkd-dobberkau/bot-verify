@@ -65,6 +65,9 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 	}
 
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
+	// deploy.sh reads this line from the container log: it is the version the
+	// process really runs, which the host's reported image tag may not be.
+	logger.Info("starting", "version", version)
 	sources.UserAgent = "bot-verify/" + version + " (+https://github.com/dkd-dobberkau/bot-verify)"
 
 	cat, err := catalog.Load(*botsPath, sources.KnownFormat)

@@ -1,0 +1,21 @@
+# Production stack on Mittwald container hosting, deployed by deploy.sh into
+# its own stack (STACK_ID in .deploy.env). `mw stack deploy` replaces the whole
+# stack, so every service of that stack must be listed here.
+#
+# No virtual host yet, so the API is not public. Containers in other stacks of
+# the project cannot reach it either: the service name does not resolve there,
+# and connections to the container address time out (seen 2026-11-19). Only
+# `mw container port-forward` reaches it. It gets a public domain once it has
+# its own per-client rate limit.
+services:
+  bot-verify:
+    image: ghcr.io/dkd-dobberkau/bot-verify:${VERSION:-latest}
+    restart: unless-stopped
+    command: ["-listen", ":8080", "-bots", "/app/bots.yaml", "-snapshot", "/data/lists.jsonl"]
+    ports:
+      - "8080"
+    volumes:
+      - lists:/data
+
+volumes:
+  lists:
