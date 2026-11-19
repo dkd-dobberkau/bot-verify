@@ -20,6 +20,7 @@ Status: v0.3.0. Public instance: https://verify.goodbot-badbot.com
 | [docs/idea.md](docs/idea.md) | Background and design decisions |
 | [docs/verdicts.md](docs/verdicts.md) | How an answer is reached, limits and timeouts |
 | [docs/bots.md](docs/bots.md) | Why each bot is classified the way it is |
+| [docs/operations.md](docs/operations.md) | The public instance: hosting, deploy, certificates, monitoring |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Setup, adding bots, code rules |
 | [SECURITY.md](SECURITY.md) | Reporting issues, known limitations |
 
