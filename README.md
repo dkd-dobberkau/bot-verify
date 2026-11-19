@@ -144,6 +144,14 @@ Every bot with `id`, `name`, `ua_tokens`, `checkable`, `methods`
 The normalised dataset: per bot its reverse-DNS suffixes, its `not_checkable`
 reason, or its sources with `fetched_at` and all prefixes.
 
+### `GET /` and `GET /robots.txt`
+
+`/` is a short page for people who open the domain: what the service does,
+an example, the endpoints, and links to the operator's Impressum and
+Datenschutz (`internal/api/home.html`, embedded in the binary). Its CSP
+allows only its own inline style, by hash. `robots.txt` keeps crawlers off
+`/v1/`.
+
 ### `GET /healthz`
 
 Liveness, always 200 while the process serves requests; the container health

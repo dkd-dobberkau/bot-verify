@@ -10,6 +10,9 @@
   `internal/ratelimit`.
 - `-trusted-proxy`: networks whose `X-Forwarded-For` names the client, read
   from the right past further trusted hops.
+- `GET /`: a page saying what the service is, with the operator's Impressum
+  and Datenschutz, under a CSP that allows only its inline style by hash;
+  `GET /robots.txt` keeps crawlers off `/v1/`.
 - `deploy.sh` and `docker-compose.mittwald.yml` for Mittwald container
   hosting. The API logs its version at start, which `deploy.sh` checks.
 

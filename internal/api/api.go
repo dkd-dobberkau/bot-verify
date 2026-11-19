@@ -42,6 +42,8 @@ func NewHandler(v *verify.Verifier, cat *catalog.Catalog, st *store.Store, logge
 	mux.HandleFunc("GET /v1/dataset", h.dataset)
 	mux.HandleFunc("GET /healthz", h.healthz)
 	mux.HandleFunc("GET /readyz", h.readyz)
+	mux.HandleFunc("GET /{$}", home)
+	mux.HandleFunc("GET /robots.txt", robots)
 	return logRequests(logger, securityHeaders(limitClients(limit, mux)))
 }
 

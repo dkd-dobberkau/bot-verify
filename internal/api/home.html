@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>bot-verify</title>
+<meta name="description" content="Is this request really from the bot it claims to be? An API that checks a bot's IP against what its operator publishes.">
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --surface: #111111;
+    --border: #1e1e1e;
+    --green: #00ff87;
+    --red: #ff3b3b;
+    --yellow: #ffd166;
+    --text: #e8e8e8;
+    --muted: #8a8a8a;
+    color-scheme: dark;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #fafafa;
+      --surface: #ffffff;
+      --border: #e2e2e2;
+      --green: #007a43;
+      --red: #c21c17;
+      --yellow: #8a6d00;
+      --text: #161616;
+      --muted: #6a6a6a;
+      color-scheme: light;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  }
+  main, footer { max-width: 760px; margin: 0 auto; padding: 0 16px; }
+  main { padding-top: 48px; }
+  h1 { font-size: 28px; margin: 0 0 4px; }
+  h1 span { color: var(--green); }
+  h2 { font-size: 16px; margin: 40px 0 8px; color: var(--muted); font-weight: normal; text-transform: uppercase; letter-spacing: 0.08em; }
+  .lead { font-size: 18px; margin: 0 0 24px; }
+  a { color: var(--green); }
+  pre, table { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; }
+  pre { padding: 12px 16px; overflow-x: auto; margin: 0 0 12px; }
+  code { font-family: inherit; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; vertical-align: top; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  tr:last-child td { border-bottom: 0; }
+  th { color: var(--muted); font-weight: normal; }
+  .confirmed { color: var(--green); }
+  .refuted { color: var(--red); }
+  .not-checkable { color: var(--yellow); }
+  .dim { color: var(--muted); }
+  footer { margin-top: 56px; padding-top: 16px; padding-bottom: 32px; border-top: 1px solid var(--border); color: var(--muted); font-size: 13px; }
+  @media (max-width: 560px) {
+    th, td { padding: 6px 8px; }
+    h1 { font-size: 24px; }
+  }
+</style>
+</head>
+<body>
+<main>
+<h1>bot-<span>verify</span></h1>
+<p class="lead">Is this request really from the bot it claims to be?</p>
+
+<p>A User-Agent string is free text: anyone can call themselves GPTBot or
+Googlebot. Most bot operators publish how to check the claim, as an IP list or
+a reverse-DNS domain, each in their own place and format. bot-verify collects
+those published methods and answers the question for an IP address and a bot.</p>
+
+<p>It uses only what operators publish about their own bots. The bot catalog
+and the reasoning behind it come from
+<a href="https://goodbot-badbot.com/bots">goodbot-badbot.com/bots</a>.</p>
+
+<h2>Ask</h2>
+<pre><code>curl 'https://verify.goodbot-badbot.com/v1/verify?ip=66.249.66.1&amp;bot=googlebot'</code></pre>
+<pre><code>{"ip":"66.249.66.1","bot":"googlebot","result":"confirmed","method":"ip_list",
+ "sources":["https://developers.google.com/static/crawling/ipranges/common-crawlers.json", …],
+ "data_age_seconds":2364}</code></pre>
+<p class="dim">Ask about the address of the TCP peer, or the one set by the
+reverse proxy you control. Never the left-most X-Forwarded-For entry: the
+client writes that, and a "confirmed" for a forged IP is worse than no
+answer.</p>
+
+<h2>Answers</h2>
+<table>
+<tr><td class="confirmed">confirmed</td><td>The IP is in the operator's published list, or its reverse-DNS name is under the operator's domain and resolves back to the same IP.</td></tr>
+<tr><td class="refuted">refuted</td><td>The operator's lists are loaded and the IP is not in them, and the reverse-DNS check, if the operator offers one, gave a definite no.</td></tr>
+<tr><td class="not-checkable">not_checkable</td><td>The operator publishes nothing to check against, DNS did not answer, or the lists have not loaded yet. Never treat this as refuted.</td></tr>
+</table>
+
+<h2>Endpoints</h2>
+<table>
+<tr><th>GET</th><th></th></tr>
+<tr><td><a href="/v1/bots">/v1/bots</a></td><td>The bots that can be asked about, with their ids</td></tr>
+<tr><td>/v1/verify?ip=…&amp;bot=…</td><td>The answer for one IP address and bot id</td></tr>
+<tr><td><a href="/v1/dataset">/v1/dataset</a></td><td>Per bot its reverse-DNS domains, its IP lists with all prefixes, or why it cannot be checked</td></tr>
+<tr><td><a href="/healthz">/healthz</a>, <a href="/readyz">/readyz</a></td><td>Liveness and readiness</td></tr>
+</table>
+<p class="dim">Requests to /v1/ are rate-limited per client network (IPv4 /24,
+IPv6 /56). Over the limit the answer is 429 with Retry-After.</p>
+
+<h2>Privacy</h2>
+<p>bot-verify stores no visitor data and does not log the IP addresses it is
+asked about, nor those of its clients: its log holds method, path, status and
+duration per request. The hosting provider's web server in front of it may
+keep access logs; see <a href="https://goodbot-badbot.com/datenschutz">Datenschutz</a>.</p>
+</main>
+<footer>
+bot-verify is part of <a href="https://goodbot-badbot.com/">goodbot-badbot.com</a>,
+an experiment by Olivier Dobberkau at dkd Internet Service GmbH ·
+<a href="https://goodbot-badbot.com/impressum">Impressum</a> ·
+<a href="https://goodbot-badbot.com/datenschutz">Datenschutz</a>
+</footer>
+</body>
+</html>
