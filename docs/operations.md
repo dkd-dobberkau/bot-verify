@@ -24,7 +24,15 @@ project and stack IDs are kept in `.deploy.env`, not here.
 - **Client IP:** the ingress connects from `100.64.0.0/10` and appends the
   client to `X-Forwarded-For`, so the stack runs with `-trusted-proxy
   100.64.0.0/10`. Without it every client would share the ingress's
-  rate-limit bucket.
+  rate-limit bucket. Trusting the whole range is safe only while no client
+  reaches the ingress from inside it: `clientAddr` skips trusted entries, so
+  such a client could name its own bucket. Checked 2026-11-19 with 45
+  requests to `/v1/bots`, each with a different made-up `X-Forwarded-For`,
+  from outside and from goodbot-badbot's container: both were limited after
+  about 40, the same as without the header, so the ingress appends the real
+  sender and goodbot-badbot does not arrive from 100.64.0.0/10. Whether other
+  Mittwald customers' workloads can arrive from that range is Mittwald's
+  routing and is not checked; if it changes, narrow `-trusted-proxy`.
 - **Other stacks cannot reach the container.** Its service name does not
   resolve there, and connections to its address time out (seen 2026-11-19).
   goodbot-badbot calls the public URL.
@@ -96,5 +104,5 @@ never query strings or client addresses). The image has no shell, so
 Defaults: 10 requests per second to `/v1/` per IPv4 /24 or IPv6 /56, burst 40
 (`-rate-limit`, `-rate-burst` in the compose `command`). Over the limit:
 429 `rate_limited`. All of goodbot-badbot's calls come from one address, so
-they share one bucket; which address the ingress sees for them (Mittwald's
-egress network or an internal one) is still to be checked.
+they share one bucket. The ingress sees them from an address outside
+100.64.0.0/10 (checked 2026-11-19, see Hosting).
