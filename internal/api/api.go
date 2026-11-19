@@ -210,11 +210,15 @@ func encodeJSON(body any) []byte {
 	return buf.Bytes()
 }
 
+// baseCSP allows nothing to load, and frame-ancestors (which default-src does
+// not cover) keeps other sites from framing any response.
+const baseCSP = "default-src 'none'; frame-ancestors 'none'"
+
 func securityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
 		h.Set("X-Content-Type-Options", "nosniff")
-		h.Set("Content-Security-Policy", "default-src 'none'")
+		h.Set("Content-Security-Policy", baseCSP)
 		h.Set("Access-Control-Allow-Origin", "*")
 		h.Set("Cache-Control", "no-store")
 		next.ServeHTTP(w, r)

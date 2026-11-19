@@ -114,7 +114,7 @@ func TestSecurityHeaders(t *testing.T) {
 		resp, _ := get(t, srv, path)
 		h := resp.Header
 		if h.Get("X-Content-Type-Options") != "nosniff" ||
-			h.Get("Content-Security-Policy") != "default-src 'none'" ||
+			h.Get("Content-Security-Policy") != "default-src 'none'; frame-ancestors 'none'" ||
 			h.Get("Access-Control-Allow-Origin") != "*" {
 			t.Errorf("%s: headers %v", path, h)
 		}

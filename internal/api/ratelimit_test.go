@@ -76,7 +76,7 @@ func TestRateLimitedRequestsGet429(t *testing.T) {
 	if resp.Header.Get("Retry-After") != "1" {
 		t.Errorf("Retry-After = %q, want 1", resp.Header.Get("Retry-After"))
 	}
-	if resp.Header.Get("Content-Security-Policy") != "default-src 'none'" {
+	if resp.Header.Get("Content-Security-Policy") != "default-src 'none'; frame-ancestors 'none'" {
 		t.Error("a 429 lacks the security headers")
 	}
 }

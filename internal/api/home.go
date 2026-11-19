@@ -20,7 +20,7 @@ var homeCSP = func() string {
 	start := bytes.Index(homePage, []byte("<style>")) + len("<style>")
 	end := bytes.Index(homePage, []byte("</style>"))
 	sum := sha256.Sum256(homePage[start:end])
-	return "default-src 'none'; style-src 'sha256-" + base64.StdEncoding.EncodeToString(sum[:]) + "'"
+	return baseCSP + "; style-src 'sha256-" + base64.StdEncoding.EncodeToString(sum[:]) + "'"
 }()
 
 // robotsTxt keeps crawlers off the API; the home page may be indexed.

@@ -41,7 +41,7 @@ func TestHomePageCSPAllowsExactlyItsStyle(t *testing.T) {
 	start := strings.Index(body, "<style>") + len("<style>")
 	end := strings.Index(body, "</style>")
 	sum := sha256.Sum256([]byte(body[start:end]))
-	want := "default-src 'none'; style-src 'sha256-" + base64.StdEncoding.EncodeToString(sum[:]) + "'"
+	want := "default-src 'none'; frame-ancestors 'none'; style-src 'sha256-" + base64.StdEncoding.EncodeToString(sum[:]) + "'"
 	if got := resp.Header.Get("Content-Security-Policy"); got != want {
 		t.Errorf("CSP = %q, want %q", got, want)
 	}
@@ -57,7 +57,7 @@ func TestOnlyRootServesTheHomePage(t *testing.T) {
 			t.Errorf("%s: status %d, want 404", path, resp.StatusCode)
 		}
 	}
-	if resp, _ := getText(t, srv.URL+"/healthz"); resp.Header.Get("Content-Security-Policy") != "default-src 'none'" {
+	if resp, _ := getText(t, srv.URL+"/healthz"); resp.Header.Get("Content-Security-Policy") != "default-src 'none'; frame-ancestors 'none'" {
 		t.Error("the home page's CSP leaked to other paths")
 	}
 }

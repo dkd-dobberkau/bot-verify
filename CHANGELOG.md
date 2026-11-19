@@ -16,6 +16,8 @@ Hardening from security audit run 3:
   `localhost`, `NO_PROXY`) still go through the non-public address check.
 - A shared reverse-DNS lookup no longer fails for every waiting caller when
   the caller that started it disconnects.
+- Every response, the home page included, carries `frame-ancestors 'none'`
+  in its CSP, so no other site can frame it.
 
 ## 0.3.0 – 2026-11-19
 
