@@ -139,6 +139,20 @@ func TestLogsNoIP(t *testing.T) {
 	}
 }
 
+// A path is client input: an address put into it must not reach the log
+// either, so the log names the matched route, not the path.
+func TestLogsNoIPFromPath(t *testing.T) {
+	srv, logs := newServer(t)
+	get(t, srv, "/v1/verify/66.249.64.5")
+	get(t, srv, "/v1/bots")
+	if strings.Contains(logs.String(), "66.249.64.5") {
+		t.Errorf("log contains an address from the path: %q", logs.String())
+	}
+	if !strings.Contains(logs.String(), "GET /v1/bots") {
+		t.Errorf("matched route not logged: %q", logs.String())
+	}
+}
+
 func TestBotsList(t *testing.T) {
 	srv, _ := newServer(t)
 	resp, err := http.Get(srv.URL + "/v1/bots")

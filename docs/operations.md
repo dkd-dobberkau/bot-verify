@@ -94,7 +94,7 @@ mw container logs <container> --project-id <project> --no-pager
 
 The log is JSON: `starting` with the version, `snapshot loaded`, `sources
 refreshed` with the number of failed sources, `source refresh failed` per
-failure, and one `request` line per request (method, path, status, duration;
+failure, and one `request` line per request (method, matched route, status, duration;
 never query strings or client addresses). The image has no shell, so
 `mw container exec` does not work; `mw container port-forward <container>
 8080` reaches the API directly.

@@ -32,7 +32,7 @@ type handler struct {
 	datasetBody    []byte
 }
 
-// NewHandler returns the API. It logs method, path, status and duration per
+// NewHandler returns the API. It logs method, matched route, status and duration per
 // request; never query parameters or client addresses.
 func NewHandler(v *verify.Verifier, cat *catalog.Catalog, st *store.Store, logger *slog.Logger, limit ClientLimit) http.Handler {
 	h := &handler{verifier: v, catalog: cat, store: st}
@@ -236,7 +236,9 @@ func logRequests(logger *slog.Logger, next http.Handler) http.Handler {
 		start := time.Now()
 		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(rec, r)
-		logger.Info("request", "method", r.Method, "path", r.URL.Path,
+		// The matched route, not the path: a path is client input and may
+		// hold an address. The mux sets Pattern on r; unmatched stays empty.
+		logger.Info("request", "method", r.Method, "route", r.Pattern,
 			"status", rec.status, "duration_ms", time.Since(start).Milliseconds())
 	})
 }
