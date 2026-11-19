@@ -47,13 +47,16 @@ cp .deploy.env.example .deploy.env   # once: STACK_ID, PROJECT_ID
 ./deploy.sh v0.3.0     # a release tag
 ```
 
-`deploy.sh` builds and pushes the image, runs `mw stack deploy`, waits until
-the container logs `"msg":"starting"` with the new version (Mittwald's
+`deploy.sh` builds and pushes the image, deploys it by digest
+(`VERSION=<tag>@sha256:…`, so a moved tag cannot change what runs), waits
+until the container logs `"msg":"starting"` with the new version (Mittwald's
 reported image can be stale), recreates the container only if that does not
 happen, and finally checks `https://verify.goodbot-badbot.com/healthz`.
+`:latest` is pushed only from a clean tree.
 
 **Rollback:** `./deploy.sh <older tag>` rebuilds that tag from the working
-tree, so check it out first (`git switch --detach <tag>`).
+tree, so check it out first (`git switch --detach <tag>`); the script refuses
+a tag that is not a clean checkout of exactly that tag.
 
 ## Certificates
 

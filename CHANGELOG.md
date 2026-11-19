@@ -18,6 +18,9 @@ Hardening from security audit run 3:
   the caller that started it disconnects.
 - Every response, the home page included, carries `frame-ancestors 'none'`
   in its CSP, so no other site can frame it.
+- `deploy.sh` deploys the pushed digest instead of a tag, refuses a release
+  tag that is not a clean checkout of that tag, and pushes `:latest` only
+  from a clean tree.
 
 ## 0.3.0 – 2026-11-19
 

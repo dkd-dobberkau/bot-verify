@@ -25,12 +25,20 @@ set +a
 : "${STACK_ID:?STACK_ID missing from .deploy.env}"
 : "${PROJECT_ID:?PROJECT_ID missing from .deploy.env}"
 
+# The image is built from the working tree, so a tag must name exactly what
+# is built: a release tag only from a clean checkout of that tag, otherwise
+# the short commit, marked -dirty when the tree has changes.
+CLEAN=true
+[[ -z "$(git status --porcelain)" ]] || CLEAN=false
 if [[ $# -ge 1 ]]; then
   TAG="$1"
+  if [[ "$(git describe --exact-match --tags HEAD 2>/dev/null)" != "${TAG}" ]] || ! ${CLEAN}; then
+    echo "ERROR: ${TAG} is not a clean checkout of tag ${TAG}; run git switch --detach ${TAG} first" >&2
+    exit 1
+  fi
 else
   TAG="$(git rev-parse --short HEAD)"
-  # The image is built from the working tree, so say when it is not HEAD.
-  [[ -z "$(git status --porcelain)" ]] || TAG="${TAG}-dirty"
+  ${CLEAN} || TAG="${TAG}-dirty"
 fi
 
 command -v docker  >/dev/null || { echo "ERROR: docker not found";  exit 1; }
@@ -56,18 +64,28 @@ print(ids[0] if ids else "")' "${stack}" "${service}"
 echo "[1/4] Login to ghcr.io"
 gh auth token | docker login ghcr.io -u dkd-dobberkau --password-stdin >/dev/null
 
-echo "[2/4] Build linux/amd64 and push (${TAG} + latest)"
+ENV_FILE="$(mktemp -t deploy.env.XXXX)"
+META_FILE="$(mktemp -t deploy.meta.XXXX)"
+trap 'rm -f "${ENV_FILE}" "${META_FILE}"' EXIT
+
+# :latest only ever points at a committed state.
+TAGS=(-t "${IMAGE}:${TAG}")
+${CLEAN} && TAGS+=(-t "${IMAGE}:latest")
+echo "[2/4] Build linux/amd64 and push (${TAG}$(${CLEAN} && echo ' + latest'))"
 docker buildx build \
   --platform linux/amd64 \
   --build-arg "VERSION=${TAG}" \
-  -t "${IMAGE}:${TAG}" \
-  -t "${IMAGE}:latest" \
+  "${TAGS[@]}" \
+  --metadata-file "${META_FILE}" \
   --push .
 
-echo "[3/4] Deploy stack"
-ENV_FILE="$(mktemp -t deploy.env.XXXX)"
-trap 'rm -f "${ENV_FILE}"' EXIT
-echo "VERSION=${TAG}" > "${ENV_FILE}"
+# Deploy the digest just pushed, not the tag: a tag can be moved, the digest
+# names exactly the image this run built.
+DIGEST="$(python3 -c 'import sys, json; print(json.load(open(sys.argv[1]))["containerimage.digest"])' "${META_FILE}")"
+[[ "${DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "ERROR: no image digest from buildx" >&2; exit 1; }
+
+echo "[3/4] Deploy stack (${TAG}@${DIGEST})"
+echo "VERSION=${TAG}@${DIGEST}" > "${ENV_FILE}"
 mw stack deploy --stack-id "${STACK_ID}" -c docker-compose.mittwald.yml --env-file "${ENV_FILE}"
 
 # Mittwald's reported image can name the new tag while the old code still
