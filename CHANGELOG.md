@@ -1,9 +1,11 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 – 2026-11-19
 
 ### Added
 
+- A public instance at https://verify.goodbot-badbot.com, and the source is
+  public.
 - Rate limit on `/v1/` per client IPv4 /24 or IPv6 /56 (`-rate-limit`, default
   10/s, `-rate-burst`, default 40), answered with `429` `rate_limited` and
   `Retry-After: 1`. The token bucket is the one of the DNS zone, now in
@@ -15,6 +17,10 @@
   `GET /robots.txt` keeps crawlers off `/v1/`.
 - `deploy.sh` and `docker-compose.mittwald.yml` for Mittwald container
   hosting. The API logs its version at start, which `deploy.sh` checks.
+
+### Removed
+
+- The internal planning documents under `docs/superpowers/`.
 
 ## 0.2.0 – 2026-11-19
 
