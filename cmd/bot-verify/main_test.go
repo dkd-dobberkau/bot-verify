@@ -246,9 +246,14 @@ func TestRunRateLimitsClients(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		// An unread body makes the client drop the connection and possibly
+		// open one it never uses; Shutdown waits 5 s for such a connection,
+		// as long as stop does.
+		io.Copy(io.Discard, resp.Body)
 		resp.Body.Close()
 		codes = append(codes, resp.StatusCode)
 	}
+	http.DefaultClient.CloseIdleConnections()
 	if codes[0] != http.StatusOK || codes[1] != http.StatusTooManyRequests {
 		t.Errorf("statuses %v, want [200 429]", codes)
 	}
