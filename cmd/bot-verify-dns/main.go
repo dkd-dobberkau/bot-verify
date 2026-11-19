@@ -24,6 +24,7 @@ import (
 
 	"github.com/dkd-dobberkau/bot-verify/internal/catalog"
 	"github.com/dkd-dobberkau/bot-verify/internal/dnszone"
+	"github.com/dkd-dobberkau/bot-verify/internal/ratelimit"
 	"github.com/dkd-dobberkau/bot-verify/internal/snapshot"
 	"github.com/dkd-dobberkau/bot-verify/internal/sources"
 	"github.com/dkd-dobberkau/bot-verify/internal/store"
@@ -111,7 +112,7 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 	})
 
 	handler := dnszone.NewHandler(dnszone.Config{Zone: *zone, NS: nameServers, Hostmaster: *hostmaster,
-		Catalog: cat, Store: st, Now: time.Now, Limiter: dnszone.NewLimiter(rateLimit, rateBurst)})
+		Catalog: cat, Store: st, Now: time.Now, Limiter: ratelimit.New(rateLimit, rateBurst)})
 	pc, ln, err := listenBoth(*listen)
 	if err != nil {
 		return err

@@ -10,6 +10,7 @@ import (
 	"github.com/miekg/dns"
 
 	"github.com/dkd-dobberkau/bot-verify/internal/catalog"
+	"github.com/dkd-dobberkau/bot-verify/internal/ratelimit"
 	"github.com/dkd-dobberkau/bot-verify/internal/store"
 )
 
@@ -35,7 +36,7 @@ type Config struct {
 	Catalog    *catalog.Catalog
 	Store      *store.Store
 	Now        func() time.Time
-	Limiter    *Limiter
+	Limiter    *ratelimit.Limiter
 }
 
 // Counters are aggregate answer counts. They never include names or clients.
@@ -100,6 +101,9 @@ func (h *Handler) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 		}
 	}()
 	udp := isUDP(w)
+	// Over the limit, a UDP source gets an empty truncated reply: a spoofed
+	// flood cannot reflect traffic at a victim network, and honest resolvers
+	// retry over TCP.
 	if udp && !h.cfg.Limiter.Allow(remoteAddr(w), h.cfg.Now()) {
 		m := new(dns.Msg)
 		m.SetReply(req)
