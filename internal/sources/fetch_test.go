@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"net/url"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -176,6 +177,31 @@ func TestIsPublicAddr(t *testing.T) {
 		if got := isPublicAddr(netip.MustParseAddr(addr)); got != want {
 			t.Errorf("isPublicAddr(%s) = %v, want %v", addr, got, want)
 		}
+	}
+}
+
+// With a proxy configured, destinations the proxy settings exempt (loopback,
+// localhost, NO_PROXY) are dialled directly, never through the proxy, so
+// the address check must still apply to them.
+func TestProxyModeStillGuardsDirectDestinations(t *testing.T) {
+	var hits atomic.Int32
+	internal := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { hits.Add(1) }))
+	defer internal.Close()
+	proxy, _ := url.Parse("http://192.0.2.1:3128")
+	var asked atomic.Int32
+	proxyFor := func(req *http.Request) (*url.URL, error) {
+		asked.Add(1)
+		if req.URL.Hostname() == "127.0.0.1" {
+			return nil, nil // exempt, as ProxyFromEnvironment exempts loopback
+		}
+		return proxy, nil
+	}
+	client := newClient(5*time.Second, proxyFor)
+	if _, err := Fetch(context.Background(), client, internal.URL, FetchState{}); err == nil {
+		t.Error("proxy mode connected directly to a loopback address")
+	}
+	if hits.Load() != 0 || asked.Load() == 0 {
+		t.Errorf("internal hits = %d, proxy consulted %d times; want 0 and at least 1", hits.Load(), asked.Load())
 	}
 }
 

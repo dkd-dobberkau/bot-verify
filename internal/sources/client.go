@@ -37,20 +37,43 @@ var (
 // http redirects, and it refuses to connect to non-public addresses, so a
 // listed origin cannot point the fetcher at loopback, private or metadata
 // endpoints, by redirect or by DNS. The address check runs after DNS
-// resolution. When an outbound proxy is configured in the environment, the
-// client connects to the proxy instead, and the proxy owns egress policy.
+// resolution. When an outbound proxy is configured in the environment,
+// requests sent through it skip the check (the proxy owns egress policy, and
+// may itself sit on a private address), but every request the proxy settings
+// exempt is dialled directly and checked.
 func NewClient(timeout time.Duration) *http.Client {
-	transport := http.DefaultTransport.(*http.Transport).Clone()
-	if !proxyConfigured() {
-		dialer := &net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second, Control: refuseNonPublic}
-		transport.DialContext = dialer.DialContext
-	}
-	return &http.Client{Timeout: timeout, Transport: transport, CheckRedirect: RejectDowngrade}
+	return newClient(timeout, http.ProxyFromEnvironment)
 }
 
-func proxyConfigured() bool {
-	proxy, err := http.ProxyFromEnvironment(&http.Request{URL: &url.URL{Scheme: "https", Host: "example.com"}})
-	return err != nil || proxy != nil
+func newClient(timeout time.Duration, proxyFor func(*http.Request) (*url.URL, error)) *http.Client {
+	base := http.DefaultTransport.(*http.Transport)
+	proxied := base.Clone()
+	proxied.Proxy = proxyFor
+	direct := base.Clone()
+	direct.Proxy = nil
+	dialer := &net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second, Control: refuseNonPublic}
+	direct.DialContext = dialer.DialContext
+	return &http.Client{Timeout: timeout, Transport: proxySplit{proxyFor, proxied, direct}, CheckRedirect: RejectDowngrade}
+}
+
+// proxySplit decides per request, and so per redirect hop, whether it goes
+// through the proxy. ProxyFromEnvironment exempts loopback, localhost and
+// NO_PROXY hosts; those go to the guarded direct transport, never to an
+// unchecked dial.
+type proxySplit struct {
+	proxyFor        func(*http.Request) (*url.URL, error)
+	proxied, direct *http.Transport
+}
+
+func (s proxySplit) RoundTrip(req *http.Request) (*http.Response, error) {
+	proxy, err := s.proxyFor(req)
+	if err != nil {
+		return nil, err
+	}
+	if proxy == nil {
+		return s.direct.RoundTrip(req)
+	}
+	return s.proxied.RoundTrip(req)
 }
 
 func refuseNonPublic(_, address string, _ syscall.RawConn) error {

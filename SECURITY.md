@@ -62,9 +62,11 @@ service for others.
 - **Public instances** run DNS lookups for addresses that callers choose. Run
   one behind a reverse proxy with per-client rate limiting. Each verify request
   is capped at 3 s and at most 64 reverse-DNS checks run at once.
-- **Outbound proxy:** when `HTTPS_PROXY` is set, the fetcher's refusal of
-  non-public destinations is off, because it connects to the proxy. The proxy
-  must then block internal destinations itself.
+- **Outbound proxy:** when `HTTPS_PROXY` is set, requests sent through the
+  proxy skip the fetcher's refusal of non-public destinations, so the proxy
+  must block internal destinations itself. Destinations the proxy settings
+  exempt (loopback, `localhost`, `NO_PROXY`) are dialled directly and still
+  checked.
 - **The DNS zone checks IP lists only.** It never sends DNS queries, so bots
   verified only by reverse DNS never get an A record there, and bots with a
   list and a reverse-DNS rule get NODATA, never NXDOMAIN, for addresses
