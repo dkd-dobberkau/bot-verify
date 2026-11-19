@@ -190,6 +190,54 @@ func (g *gatedResolver) LookupAddr(ctx context.Context, addr string) ([]string, 
 	return g.fakeResolver.LookupAddr(ctx, addr)
 }
 
+// cancelableResolver blocks like gatedResolver but, like a real resolver,
+// gives up when its context ends.
+type cancelableResolver struct{ gatedResolver }
+
+func (c *cancelableResolver) LookupAddr(ctx context.Context, addr string) ([]string, error) {
+	c.started <- struct{}{}
+	select {
+	case <-c.release:
+		return c.fakeResolver.LookupAddr(ctx, addr)
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+// The first caller of a key runs the shared lookup. If it disconnects, other
+// callers waiting on that lookup must still get its answer, not an error.
+func TestSharedLookupOutlivesTheFirstCaller(t *testing.T) {
+	r := &cancelableResolver{gatedResolver{
+		fakeResolver: fakeResolver{
+			ptr:     map[string][]string{"66.249.66.1": {"crawl.googlebot.com."}},
+			forward: map[string][]string{"crawl.googlebot.com.": {"66.249.66.1"}},
+		},
+		release: make(chan struct{}),
+		started: make(chan struct{}, 8),
+	}}
+	now := t0
+	c := newChecker(r, &now)
+	firstCtx, cancelFirst := context.WithCancel(context.Background())
+	go c.Check(firstCtx, googleIP, google)
+	<-r.started
+	type result struct {
+		outcome Outcome
+		err     error
+	}
+	second := make(chan result, 1)
+	go func() {
+		outcome, _, err := c.Check(context.Background(), googleIP, google)
+		second <- result{outcome, err}
+	}()
+	time.Sleep(20 * time.Millisecond) // let the second caller join the flight
+	cancelFirst()
+	time.Sleep(20 * time.Millisecond)
+	close(r.release)
+	if got := <-second; got.outcome != Match || got.err != nil {
+		t.Errorf("second caller got %v, %v; want Match after the first caller left", got.outcome, got.err)
+	}
+}
+
 func TestConcurrentIdenticalChecksShareOneLookup(t *testing.T) {
 	g := &gatedResolver{
 		fakeResolver: fakeResolver{

@@ -95,26 +95,33 @@ func (c *Checker) Check(ctx context.Context, ip netip.Addr, suffixes []string) (
 		return entry.outcome, entry.hostname, nil
 	}
 	c.mu.Lock()
-	if f, ok := c.inflight[key]; ok {
-		c.mu.Unlock()
-		select {
-		case <-f.done:
-			return f.outcome, f.hostname, f.err
-		case <-ctx.Done():
-			return NoMatch, "", errors.Join(ErrLookup, ctx.Err())
-		}
+	f, ok := c.inflight[key]
+	if !ok {
+		f = &flight{done: make(chan struct{})}
+		c.inflight[key] = f
+		go c.fly(ctx, f, ip, suffixes, key)
 	}
-	f := &flight{done: make(chan struct{})}
-	c.inflight[key] = f
 	c.mu.Unlock()
-	defer func() {
-		c.mu.Lock()
-		delete(c.inflight, key)
-		c.mu.Unlock()
-		close(f.done)
-	}()
+	select {
+	case <-f.done:
+		return f.outcome, f.hostname, f.err
+	case <-ctx.Done():
+		return NoMatch, "", errors.Join(ErrLookup, ctx.Err())
+	}
+}
+
+// fly runs the lookup every caller of key shares. It must not end when the
+// caller that started it leaves, or that caller's disconnect would turn the
+// others' answer into an error; so it runs detached from that caller's
+// cancellation, bounded by one slot wait and one lookup.
+func (c *Checker) fly(callerCtx context.Context, f *flight, ip netip.Addr, suffixes []string, key string) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(callerCtx), 2*lookupTimeout)
+	defer cancel()
 	f.outcome, f.hostname, f.err = c.checkUncached(ctx, ip, suffixes, key)
-	return f.outcome, f.hostname, f.err
+	c.mu.Lock()
+	delete(c.inflight, key)
+	c.mu.Unlock()
+	close(f.done)
 }
 
 // checkUncached takes a lookup slot, runs the lookup and caches a definite answer.
