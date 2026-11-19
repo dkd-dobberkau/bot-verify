@@ -64,31 +64,16 @@ docker buildx build \
   -t "${IMAGE}:latest" \
   --push .
 
-echo "[3/4] Deploy stack and recreate container"
+echo "[3/4] Deploy stack"
 ENV_FILE="$(mktemp -t deploy.env.XXXX)"
 trap 'rm -f "${ENV_FILE}"' EXIT
 echo "VERSION=${TAG}" > "${ENV_FILE}"
 mw stack deploy --stack-id "${STACK_ID}" -c docker-compose.mittwald.yml --env-file "${ENV_FILE}"
 
 # Mittwald's reported image can name the new tag while the old code still
-# runs, and a stack deploy does not always pull. Recreate, then trust only the
-# version the process logs at start.
-CID="$(container_id "${STACK_ID}" "${SERVICE}")"
-[[ -n "${CID}" ]] || { echo "ERROR: no ${SERVICE} container in stack ${STACK_ID}" >&2; exit 1; }
-for attempt in 1 2 3; do
-  if mw container recreate "${CID}" --project-id "${PROJECT_ID}" --force; then
-    break
-  fi
-  (( attempt < 3 )) || { echo "ERROR: recreate failed after 3 attempts" >&2; exit 1; }
-  echo "  recreate attempt ${attempt} failed, retrying in $((attempt * 5))s..."
-  sleep $((attempt * 5))
-done
-CID="$(container_id "${STACK_ID}" "${SERVICE}")"
-
-echo "  waiting for the container to log version ${TAG}..."
-LIVE=""
-for _ in $(seq 1 30); do
-  LIVE="$(mw container logs "${CID}" --project-id "${PROJECT_ID}" --no-pager 2>/dev/null \
+# runs, so only the version the process logs at start counts.
+live_version() {
+  mw container logs "${CID}" --project-id "${PROJECT_ID}" --no-pager 2>/dev/null \
     | python3 -c 'import sys, json
 version = ""
 for line in sys.stdin:
@@ -99,13 +84,40 @@ for line in sys.stdin:
         continue
     if entry.get("msg") == "starting":
         version = entry.get("version", "")
-print(version)' || true)"
-  [[ "${LIVE}" == "${TAG}" ]] && break
-  sleep 2
-done
-if [[ "${LIVE}" != "${TAG}" ]]; then
-  echo "ERROR: container logs version '${LIVE:-<none>}', expected '${TAG}'" >&2
-  exit 1
+print(version)' || true
+}
+
+wait_for_version() {
+  for _ in $(seq 1 30); do
+    LIVE="$(live_version)"
+    [[ "${LIVE}" == "${TAG}" ]] && return 0
+    sleep 2
+  done
+  return 1
+}
+
+CID="$(container_id "${STACK_ID}" "${SERVICE}")"
+[[ -n "${CID}" ]] || { echo "ERROR: no ${SERVICE} container in stack ${STACK_ID}" >&2; exit 1; }
+LIVE=""
+echo "  waiting for the container to log version ${TAG}..."
+# A new tag makes the stack deploy restart the container itself; a recreate
+# right then fails. Recreate only when the deploy did not bring the version
+# up, as with an unchanged tag or an image that was not pulled.
+if ! wait_for_version; then
+  echo "  container logs version '${LIVE:-<none>}'; recreating"
+  for attempt in 1 2 3; do
+    if mw container recreate "${CID}" --project-id "${PROJECT_ID}" --force; then
+      break
+    fi
+    (( attempt < 3 )) || { echo "ERROR: recreate failed after 3 attempts" >&2; exit 1; }
+    echo "  recreate attempt ${attempt} failed, retrying in $((attempt * 5))s..."
+    sleep $((attempt * 5))
+  done
+  CID="$(container_id "${STACK_ID}" "${SERVICE}")"
+  if ! wait_for_version; then
+    echo "ERROR: container logs version '${LIVE:-<none>}', expected '${TAG}'" >&2
+    exit 1
+  fi
 fi
 
 # Through the public domain, so the check covers the ingress and its
