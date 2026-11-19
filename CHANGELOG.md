@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+Hardening from security audit run 3:
+
+- The request log names the matched route instead of the path, so an
+  address put into a path is not logged.
+- NAT64 (`64:ff9b::/96`) and 6to4 (`2002::/16`) prefixes in an operator list
+  must leave no more than an IPv4 /8 open in their embedded IPv4 bits.
+- A 304 is accepted only as the answer to a validator that was sent; before,
+  a 304 to an unconditional request renewed the stored list.
+- With `HTTPS_PROXY` set, requests the proxy settings exempt (loopback,
+  `localhost`, `NO_PROXY`) still go through the non-public address check.
+- A shared reverse-DNS lookup no longer fails for every waiting caller when
+  the caller that started it disconnects.
+
 ## 0.3.0 – 2026-11-19
 
 ### Added
