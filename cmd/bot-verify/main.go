@@ -11,13 +11,16 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/netip"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/dkd-dobberkau/bot-verify/internal/api"
 	"github.com/dkd-dobberkau/bot-verify/internal/catalog"
+	"github.com/dkd-dobberkau/bot-verify/internal/ratelimit"
 	"github.com/dkd-dobberkau/bot-verify/internal/rdns"
 	"github.com/dkd-dobberkau/bot-verify/internal/snapshot"
 	"github.com/dkd-dobberkau/bot-verify/internal/sources"
@@ -48,6 +51,19 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 	rdnsTTL := flags.Duration("rdns-ttl", 15*time.Minute, "cache lifetime of reverse-DNS answers")
 	snapshotPath := flags.String("snapshot", "", "JSONL file to keep the lists in for a warm start (off when empty)")
 	rdnsConcurrency := flags.Int("rdns-concurrency", 64, "maximum concurrent reverse-DNS checks")
+	rateLimit := flags.Int("rate-limit", 10, "requests per second to /v1/ per client IPv4 /24 or IPv6 /56 (0 turns the limit off)")
+	rateBurst := flags.Int("rate-burst", 40, "burst size of -rate-limit")
+	var trustedProxies []netip.Prefix
+	flags.Func("trusted-proxy", "comma-separated networks of the reverse proxies whose X-Forwarded-For names the client (repeatable)", func(value string) error {
+		for _, text := range strings.Split(value, ",") {
+			prefix, err := netip.ParsePrefix(strings.TrimSpace(text))
+			if err != nil {
+				return fmt.Errorf("%q is not a network in CIDR notation", text)
+			}
+			trustedProxies = append(trustedProxies, prefix.Masked())
+		}
+		return nil
+	})
 	showVersion := flags.Bool("version", false, "print version and exit")
 	probe := flags.Bool("probe", false, "check /healthz of the server at -listen and exit (container health check)")
 	if err := flags.Parse(args); err != nil {
@@ -62,6 +78,9 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 	}
 	if *refresh <= 0 || *rdnsTTL <= 0 || *rdnsConcurrency <= 0 {
 		return errors.New("-refresh, -rdns-ttl and -rdns-concurrency must be positive")
+	}
+	if *rateLimit < 0 || (*rateLimit > 0 && *rateBurst <= 0) {
+		return errors.New("-rate-limit must not be negative, and -rate-burst must be positive")
 	}
 
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
@@ -88,7 +107,11 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 
 	checker := rdns.NewChecker(net.DefaultResolver, *rdnsTTL, *rdnsConcurrency, time.Now)
 	verifier := verify.New(cat, st, checker, time.Now)
-	server := newServer(api.NewHandler(verifier, cat, st, logger))
+	limit := api.ClientLimit{TrustedProxies: trustedProxies, Now: time.Now}
+	if *rateLimit > 0 {
+		limit.Limiter = ratelimit.New(*rateLimit, *rateBurst)
+	}
+	server := newServer(api.NewHandler(verifier, cat, st, logger, limit))
 	listener, err := net.Listen("tcp", *listen)
 	if err != nil {
 		return err

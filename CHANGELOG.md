@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Rate limit on `/v1/` per client IPv4 /24 or IPv6 /56 (`-rate-limit`, default
+  10/s, `-rate-burst`, default 40), answered with `429` `rate_limited` and
+  `Retry-After: 1`. The token bucket is the one of the DNS zone, now in
+  `internal/ratelimit`.
+- `-trusted-proxy`: networks whose `X-Forwarded-For` names the client, read
+  from the right past further trusted hops.
+- `deploy.sh` and `docker-compose.mittwald.yml` for Mittwald container
+  hosting. The API logs its version at start, which `deploy.sh` checks.
+
 ## 0.2.0 – 2026-11-19
 
 ### Added

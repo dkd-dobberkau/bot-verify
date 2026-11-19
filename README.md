@@ -64,6 +64,9 @@ go build -o bot-verify ./cmd/bot-verify
 | `-snapshot`         |             | JSONL file the lists are kept in, so a restart is ready at once; off when unset (see below) |
 | `-rdns-ttl`         | `15m`       | Cache lifetime of reverse-DNS answers (failures are not cached) |
 | `-rdns-concurrency` | `64`        | Maximum concurrent reverse-DNS checks |
+| `-rate-limit`       | `10`        | Requests per second to `/v1/` per client IPv4 /24 or IPv6 /56; `0` turns it off (see below) |
+| `-rate-burst`       | `40`        | Burst size of `-rate-limit` |
+| `-trusted-proxy`    |             | Comma-separated networks of your reverse proxies, repeatable; only a peer inside them may name the client in `X-Forwarded-For` |
 | `-probe`            |             | Check `/healthz` at `-listen` and exit; used as container health check |
 | `-version`          |             | Print the version |
 
@@ -74,8 +77,20 @@ docker build --build-arg VERSION=0.2.0 -t bot-verify .
 docker run --rm -p 8080:8080 bot-verify
 ```
 
-A public instance belongs behind a reverse proxy with per-client rate limiting;
-each uncached reverse-DNS check costs up to three DNS queries.
+**Rate limit.** Each uncached reverse-DNS check costs up to three DNS queries,
+so `/v1/` is limited per client network (IPv4 /24, IPv6 /56, as in the DNS
+zone). Over the limit the answer is `429` with error code `rate_limited` and
+`Retry-After: 1`. `/healthz` and `/readyz` are not limited. A full limiter
+table (100,000 networks) evicts only idle entries and refuses new networks
+until then.
+
+The client is the TCP peer. Behind a reverse proxy, every request comes from
+the proxy and all clients would share one bucket: set `-trusted-proxy` to the
+proxy's network. Then `X-Forwarded-For` is read from the right, past further
+trusted hops; the first other address is the client, and entries left of it,
+which the client wrote, are never used. On Mittwald container hosting the
+ingress connects from `100.64.0.0/10` (RFC 6598). Never trust a network that
+untrusted clients can connect from.
 
 **Maximum list age.** A list whose last successful fetch (or 304) is older
 than 7 days counts as not loaded: it neither confirms nor refutes, and

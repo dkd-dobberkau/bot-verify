@@ -37,7 +37,7 @@ func newServer(t *testing.T) (*httptest.Server, *bytes.Buffer) {
 	st.Set(listURL, store.Snapshot{Prefixes: []netip.Prefix{netip.MustParsePrefix("66.249.64.0/27")}, FetchedAt: time.Now()})
 	logs := &bytes.Buffer{}
 	logger := slog.New(slog.NewTextHandler(logs, nil))
-	srv := httptest.NewServer(NewHandler(verify.New(cat, st, noRDNS{}, time.Now), cat, st, logger))
+	srv := httptest.NewServer(NewHandler(verify.New(cat, st, noRDNS{}, time.Now), cat, st, logger, ClientLimit{}))
 	t.Cleanup(srv.Close)
 	return srv, logs
 }
@@ -182,7 +182,7 @@ func TestHealthz(t *testing.T) {
 
 func TestURLsNotHTMLEscaped(t *testing.T) {
 	cat := catalog.New([]catalog.Bot{{ID: "ampbot", Name: "AmpBot", NotCheckable: "x", Docs: "https://ops.example/?a=1&b=2"}})
-	srv := httptest.NewServer(NewHandler(verify.New(cat, store.New(), noRDNS{}, time.Now), cat, store.New(), slog.New(slog.DiscardHandler)))
+	srv := httptest.NewServer(NewHandler(verify.New(cat, store.New(), noRDNS{}, time.Now), cat, store.New(), slog.New(slog.DiscardHandler), ClientLimit{}))
 	defer srv.Close()
 	resp, err := http.Get(srv.URL + "/v1/verify?ip=192.0.2.1&bot=ampbot")
 	if err != nil {
@@ -208,7 +208,7 @@ func TestVerifyHasDeadline(t *testing.T) {
 	verifyTimeout = 100 * time.Millisecond
 	defer func() { verifyTimeout = old }()
 	cat := catalog.New([]catalog.Bot{{ID: "dnsbot", Name: "DNSBot", RDNSSuffixes: []string{"ops.example"}}})
-	srv := httptest.NewServer(NewHandler(verify.New(cat, store.New(), blockingRDNS{}, time.Now), cat, store.New(), slog.New(slog.DiscardHandler)))
+	srv := httptest.NewServer(NewHandler(verify.New(cat, store.New(), blockingRDNS{}, time.Now), cat, store.New(), slog.New(slog.DiscardHandler), ClientLimit{}))
 	defer srv.Close()
 	client := &http.Client{Timeout: 3 * time.Second}
 	resp, err := client.Get(srv.URL + "/v1/verify?ip=192.0.2.1&bot=dnsbot")
@@ -225,7 +225,7 @@ func TestVerifyHasDeadline(t *testing.T) {
 
 func readyz(t *testing.T, st *store.Store, cat *catalog.Catalog) (int, map[string]any) {
 	t.Helper()
-	srv := httptest.NewServer(NewHandler(verify.New(cat, st, noRDNS{}, time.Now), cat, st, slog.New(slog.DiscardHandler)))
+	srv := httptest.NewServer(NewHandler(verify.New(cat, st, noRDNS{}, time.Now), cat, st, slog.New(slog.DiscardHandler), ClientLimit{}))
 	defer srv.Close()
 	resp, body := get(t, srv, "/readyz")
 	return resp.StatusCode, body
@@ -241,7 +241,7 @@ func TestReadyzCountsOnlyFreshLists(t *testing.T) {
 	if code, body := readyz(t, st, cat); code != http.StatusServiceUnavailable || body["status"] != "no_sources_loaded" || body["sources_loaded"] != 0.0 {
 		t.Errorf("only a stale list: %d %v, want 503 no_sources_loaded with 0 loaded", code, body)
 	}
-	srv := httptest.NewServer(NewHandler(verify.New(cat, st, noRDNS{}, time.Now), cat, st, slog.New(slog.DiscardHandler)))
+	srv := httptest.NewServer(NewHandler(verify.New(cat, st, noRDNS{}, time.Now), cat, st, slog.New(slog.DiscardHandler), ClientLimit{}))
 	t.Cleanup(srv.Close)
 	if _, body := get(t, srv, "/healthz"); body["sources_loaded"] != 0.0 {
 		t.Errorf("/healthz sources_loaded = %v, want 0 for a stale list", body["sources_loaded"])
@@ -286,7 +286,7 @@ func TestDatasetRebuiltOnlyWhenStoreChanges(t *testing.T) {
 		IPSources: []catalog.IPSource{{URL: listURL, Format: "google-prefixes"}}}})
 	st := store.New()
 	st.Set(listURL, store.Snapshot{Prefixes: []netip.Prefix{netip.MustParsePrefix("66.249.64.0/27")}, FetchedAt: time.Now()})
-	srv := httptest.NewServer(NewHandler(verify.New(cat, st, noRDNS{}, time.Now), cat, st, slog.New(slog.DiscardHandler)))
+	srv := httptest.NewServer(NewHandler(verify.New(cat, st, noRDNS{}, time.Now), cat, st, slog.New(slog.DiscardHandler), ClientLimit{}))
 	defer srv.Close()
 	read := func() string {
 		resp, err := http.Get(srv.URL + "/v1/dataset")

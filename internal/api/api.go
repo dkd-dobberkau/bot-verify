@@ -34,7 +34,7 @@ type handler struct {
 
 // NewHandler returns the API. It logs method, path, status and duration per
 // request; never query parameters or client addresses.
-func NewHandler(v *verify.Verifier, cat *catalog.Catalog, st *store.Store, logger *slog.Logger) http.Handler {
+func NewHandler(v *verify.Verifier, cat *catalog.Catalog, st *store.Store, logger *slog.Logger, limit ClientLimit) http.Handler {
 	h := &handler{verifier: v, catalog: cat, store: st}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /v1/verify", h.verify)
@@ -42,7 +42,7 @@ func NewHandler(v *verify.Verifier, cat *catalog.Catalog, st *store.Store, logge
 	mux.HandleFunc("GET /v1/dataset", h.dataset)
 	mux.HandleFunc("GET /healthz", h.healthz)
 	mux.HandleFunc("GET /readyz", h.readyz)
-	return logRequests(logger, securityHeaders(mux))
+	return logRequests(logger, securityHeaders(limitClients(limit, mux)))
 }
 
 func (h *handler) verify(w http.ResponseWriter, r *http.Request) {

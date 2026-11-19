@@ -226,3 +226,45 @@ func TestServerRejectsOversizedHeaders(t *testing.T) {
 		t.Errorf("status %d for a 32 KiB header, want 431", resp.StatusCode)
 	}
 }
+
+func writeNoSourceBots(t *testing.T) string {
+	t.Helper()
+	bots := filepath.Join(t.TempDir(), "bots.yaml")
+	yaml := "bots:\n  - id: nobot\n    name: NoBot\n    not_checkable: nothing published\n    docs: https://ops.example/bots\n"
+	if err := os.WriteFile(bots, []byte(yaml), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return bots
+}
+
+func TestRunRateLimitsClients(t *testing.T) {
+	addr, stop := startRun(t, "-bots", writeNoSourceBots(t), "-rate-limit", "1", "-rate-burst", "1")
+	defer stop()
+	var codes []int
+	for range 2 {
+		resp, err := http.Get("http://" + addr + "/v1/bots")
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		codes = append(codes, resp.StatusCode)
+	}
+	if codes[0] != http.StatusOK || codes[1] != http.StatusTooManyRequests {
+		t.Errorf("statuses %v, want [200 429]", codes)
+	}
+}
+
+func TestRunRejectsBadLimitFlags(t *testing.T) {
+	bots := writeNoSourceBots(t)
+	for _, args := range [][]string{
+		{"-rate-limit", "-1"},
+		{"-rate-limit", "5", "-rate-burst", "0"},
+		{"-trusted-proxy", "100.64.0.0"},
+		{"-trusted-proxy", "100.64.0.0/10,junk"},
+	} {
+		err := run(context.Background(), append([]string{"-listen", "127.0.0.1:0", "-bots", bots}, args...), io.Discard)
+		if err == nil {
+			t.Errorf("%v: run accepted it", args)
+		}
+	}
+}

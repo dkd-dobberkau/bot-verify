@@ -5,13 +5,15 @@
 # No virtual host yet, so the API is not public. Containers in other stacks of
 # the project cannot reach it either: the service name does not resolve there,
 # and connections to the container address time out (seen 2026-11-19). Only
-# `mw container port-forward` reaches it. It gets a public domain once it has
-# its own per-client rate limit.
+# `mw container port-forward` reaches it.
 services:
   bot-verify:
     image: ghcr.io/dkd-dobberkau/bot-verify:${VERSION:-latest}
     restart: unless-stopped
-    command: ["-listen", ":8080", "-bots", "/app/bots.yaml", "-snapshot", "/data/lists.jsonl"]
+    # The ingress connects from 100.64.0.0/10; without -trusted-proxy every
+    # client would share the ingress's rate-limit bucket.
+    command: ["-listen", ":8080", "-bots", "/app/bots.yaml", "-snapshot", "/data/lists.jsonl",
+              "-trusted-proxy", "100.64.0.0/10"]
     ports:
       - "8080"
     volumes:
