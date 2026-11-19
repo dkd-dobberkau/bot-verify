@@ -2,10 +2,11 @@
 # its own stack (STACK_ID in .deploy.env). `mw stack deploy` replaces the whole
 # stack, so every service of that stack must be listed here.
 #
-# No virtual host yet, so the API is not public. Containers in other stacks of
-# the project cannot reach it either: the service name does not resolve there,
-# and connections to the container address time out (seen 2026-11-19). Only
-# `mw container port-forward` reaches it.
+# Public at https://verify.goodbot-badbot.com through a virtual host that
+# routes to this container (its ID survives a recreate). Containers in other
+# stacks of the project cannot reach it directly: the service name does not
+# resolve there, and connections to the container address time out (seen
+# 2026-11-19).
 services:
   bot-verify:
     image: ghcr.io/dkd-dobberkau/bot-verify:${VERSION:-latest}

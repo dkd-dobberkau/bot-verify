@@ -12,7 +12,7 @@ set -euo pipefail
 
 IMAGE="ghcr.io/dkd-dobberkau/bot-verify"
 SERVICE="bot-verify"
-LOCAL_PORT="${LOCAL_PORT:-18080}"
+BASE_URL="https://verify.goodbot-badbot.com"
 
 if [[ ! -f .deploy.env ]]; then
   echo "ERROR: .deploy.env not found. Copy .deploy.env.example and fill in." >&2
@@ -108,28 +108,20 @@ if [[ "${LIVE}" != "${TAG}" ]]; then
   exit 1
 fi
 
-# The API has no public domain, and containers of other stacks cannot reach
-# it (seen 2026-11-19), so the check goes through a port forward.
-echo "[4/4] Health check through a port forward"
-FORWARD_PID=""
-trap 'rm -f "${ENV_FILE}"; [[ -z "${FORWARD_PID}" ]] || kill "${FORWARD_PID}" 2>/dev/null || true' EXIT
+# Through the public domain, so the check covers the ingress and its
+# certificate too.
+echo "[4/4] Health check at ${BASE_URL}"
 HEALTH=""
-for _ in $(seq 1 20); do
-  # Right after a recreate the forward can exit before SSH into the new
-  # container works, so start it again whenever it is gone.
-  if [[ -z "${FORWARD_PID}" ]] || ! kill -0 "${FORWARD_PID}" 2>/dev/null; then
-    mw container port-forward "${CID}" "${LOCAL_PORT}:8080" --project-id "${PROJECT_ID}" >/dev/null 2>&1 &
-    FORWARD_PID=$!
-  fi
-  HEALTH="$(curl -s --max-time 3 "http://127.0.0.1:${LOCAL_PORT}/healthz" || true)"
+for _ in $(seq 1 12); do
+  HEALTH="$(curl -s --max-time 10 "${BASE_URL}/healthz" || true)"
   [[ "${HEALTH}" == *'"status":"ok"'* ]] && break
-  sleep 2
+  sleep 3
 done
 if [[ "${HEALTH}" != *'"status":"ok"'* ]]; then
-  echo "FAIL: /healthz did not answer ok through the port forward"
+  echo "FAIL: ${BASE_URL}/healthz did not answer ok"
   mw container logs "${CID}" --project-id "${PROJECT_ID}" --no-pager 2>/dev/null | tail -30 || true
   exit 1
 fi
 
-echo "Live in stack ${STACK_ID}: ${IMAGE}:${TAG}"
+echo "Live: ${BASE_URL} (${IMAGE}:${TAG})"
 echo "  ${HEALTH}"
